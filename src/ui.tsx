@@ -684,7 +684,7 @@ export default function App() {
               alt="Аватар игрока"
               className="user-avatar-img"
             />
-            <span className="avatar-level-badge">{s.level}</span>
+            <span className="avatar-level-badge">Ур. {s.level}</span>
           </div>
           <div className="user-info">
             <span className="user-name">Игрок</span>

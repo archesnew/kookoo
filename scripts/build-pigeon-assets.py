@@ -60,99 +60,98 @@ EYES_MAPPING = {
 
 def extract_base_body(base_img: Image.Image) -> tuple[Image.Image, np.ndarray]:
     """
-    Удаляет внешний белый фон, белый просвет между ног и тень на полу ниже кончиков пальцев/когтей.
-    Лапы, пальцы, когти, пузо, перья и глаза сохраняются целыми без обрезания.
-    Выполняет профессиональный de-fringing для отображения на тёмном фоне #100919.
-    Возвращает RGBA-изображение (2048x2048) и булеву маску силуэта птицы fg_clean.
+    Удаляет внешний белый фон, белый просвет между ног и любую тень на полу.
+    Ноги, пальцы и темные кончики когтей сохраняются целыми без обрезания.
+    Выполняет профессиональный de-fringing (расширение цвета изнутри силуэта наружу),
+    гарантируя полное отсутствие белых ореолов, полос и пятен на тёмном фоне #100919.
     """
     rgb = base_img.convert("RGB")
     arr = np.array(rgb, dtype=np.float32)
     h, w, _ = arr.shape
 
     dist_from_white = np.sqrt(np.sum((255.0 - arr) ** 2, axis=-1))
-    channel_diff = arr.max(axis=-1) - arr.min(axis=-1)
-    bright = arr.mean(axis=-1)
 
-    # 1. Точное определение пикселей лап и когтей для защиты от удаления:
-    # Темные кончики когтей (bright < 142) или оранжевые пальцы лап
-    is_foot_pixel = (np.arange(h)[:, None] >= 1650) & (
-        ((channel_diff > 22) & (arr[:, :, 0] > arr[:, :, 2] + 20)) |
-        (bright < 142)
-    )
-
-    # Находим самую нижнюю точку когтя/пальца в каждой колонке x
-    bottom_claw_y = np.zeros(w, dtype=int)
-    for x in range(740, 1470):
-        col_feet = np.where(is_foot_pixel[:, x])[0]
-        if len(col_feet) > 0:
-            bottom_claw_y[x] = col_feet.max()
-
-    # 2. Формирование маски тени на полу (жестко обнуляется alpha = 0):
-    is_floor_shadow = np.zeros((h, w), dtype=bool)
-    # Ниже самой низкой точки когтей птицы (y >= 1847) теней и деталей нет
-    is_floor_shadow[1847:, :] = True
+    # 1. Точное и строгое выделение ног и когтей в нижней части птицы (y >= 1650):
+    # Ноги и пальцы голубя строго оранжевые: R высокое, R > B + 35, G > 30.
     y_grid, x_grid = np.ogrid[:h, :w]
-    # Тень слева и справа от лап (y >= 1680)
-    is_floor_shadow |= (y_grid >= 1680) & ((x_grid < 750) | (x_grid > 1465))
+    is_lower = (y_grid >= 1650)
+    is_orange_toe = is_lower & (arr[:, :, 0] > 130) & (arr[:, :, 0] - arr[:, :, 2] > 35) & (arr[:, :, 1] > 30)
 
-    # Тень строго ниже кончиков когтей в каждой колонке
-    for x in range(750, 1465):
-        if bottom_claw_y[x] > 0:
-            is_floor_shadow[bottom_claw_y[x] + 1:, x] = True
-        else:
-            is_floor_shadow[1680:, x] = True
+    # Темные кончики когтей (находятся в пределах 35 px от оранжевых пальцев):
+    # Когти имеют низкую яркость (mean < 110) и темный оттенок, отличный от фона
+    kernel_claws = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (35, 35))
+    dilated_orange = cv2.dilate(is_orange_toe.astype(np.uint8), kernel_claws).astype(bool)
+    is_dark_claw = is_lower & dilated_orange & (arr.mean(axis=-1) < 110)
 
-    # 3. Белый фон (снаружи и в замкнутом просвете между ног)
-    is_white = (dist_from_white < 12.0)
-    bg_candidates = is_white | is_floor_shadow
-    num, labels, stats, centroids = cv2.connectedComponentsWithStats(bg_candidates.astype(np.uint8))
+    # Истинная маска лап (только оранжевые пальцы + прилегающие темные когти)
+    is_foot = is_orange_toe | is_dark_claw
 
+    # Тень на полу: ВСЕ пиксели ниже 1650, не являющиеся лапами или когтями,
+    # гарантированно отсекаются в alpha = 0! Никаких белых плашек или теней студии!
+    is_floor_shadow = is_lower & (~is_foot)
+
+    # 2. Выделение внешнего белого фона
+    is_bg_candidate = (dist_from_white < 14.0) | is_floor_shadow
+    num, labels, stats, centroids = cv2.connectedComponentsWithStats(is_bg_candidate.astype(np.uint8))
     outer_bg_label = labels[0, 0]
-    is_bg = (labels == outer_bg_label) | is_floor_shadow
+    is_outer_bg = (labels == outer_bg_label) | is_floor_shadow
 
-    # Удаляем замкнутый просвет между ног (отверстие под пузом)
+    # Очистка замкнутого просвета между ног (под брюшком)
     for i in range(1, num):
         if i == outer_bg_label:
             continue
         area = stats[i, cv2.CC_STAT_AREA]
         cx, cy = centroids[i]
-        if area > 100 and 1580 < cy < 1780 and 920 < cx < 1240:
-            is_bg |= (labels == i)
+        if area > 80 and 1540 < cy < 1720 and 900 < cx < 1250:
+            is_outer_bg |= (labels == i)
 
-    # 4. Основной силуэт птицы (без изолированного мелкого шума)
-    fg_binary = ~is_bg
-    num_fg, labels_fg, stats_fg, centroids_fg = cv2.connectedComponentsWithStats(fg_binary.astype(np.uint8))
+    # 3. Чистый силуэт птицы (главный связный компонент)
+    bird_fg = (~is_outer_bg) & (~is_floor_shadow)
+    num_fg, labels_fg, stats_fg, _ = cv2.connectedComponentsWithStats(bird_fg.astype(np.uint8))
     main_fg_label = np.argmax(stats_fg[1:, cv2.CC_STAT_AREA]) + 1
     fg_clean = (labels_fg == main_fg_label)
 
-    # 5. Вычисление альфа-канала с сохранением бережного контура птицы
-    t = np.clip((dist_from_white - 6.0) / (32.0 - 6.0), 0.0, 1.0)
-    alpha = t * t * (3.0 - 2.0 * t)
-    alpha[~fg_clean] = 0.0
-    # Жёстко обнуляем тень на полу ниже лап и когтей
-    alpha[is_floor_shadow] = 0.0
+    # 4. Расчет альфа-канала с мягким антиалиасингом по контуру перьев
+    alpha = np.zeros((h, w), dtype=np.float32)
+    # Лапы и когти solid (1.0)
+    alpha[is_foot & fg_clean] = 1.0
+    # Верхняя часть тела: плавный переход на антиалиасных границах
+    upper = fg_clean & (~is_lower)
+    t = np.clip((dist_from_white - 7.0) / (25.0 - 7.0), 0.0, 1.0)
+    alpha[upper] = t[upper]
 
-    # Сглаживание субпиксельного антиалиасинга по контуру
-    alpha_smooth = cv2.GaussianBlur(alpha, (3, 3), 0.75)
+    # Сглаживание краев альфы
+    alpha_smooth = cv2.GaussianBlur(alpha, (3, 3), 0.5)
     alpha_smooth[~fg_clean] = 0.0
     alpha_smooth[is_floor_shadow] = 0.0
+    # Очистка ультра-слабого шума (alpha < 0.06 обнуляется)
+    alpha_smooth[alpha_smooth < 0.06] = 0.0
 
-    # 6. De-fringing (устранение белого ореола для тёмного фона #100919)
-    alpha_safe = np.maximum(alpha_smooth[:, :, None], 0.08)
-    unblended = (arr - 255.0 * (1.0 - alpha_smooth[:, :, None])) / alpha_safe
-    unblended = np.clip(unblended, 0.0, 255.0)
+    # 5. Истинный де-фринжинг (De-fringing) без белого ореола:
+    # Ядро птицы, где альфа близка к 1.0:
+    core_bird = (alpha_smooth > 0.92)
+    # Маска для inpainting: расширяем истинные цвета перьев и лап птицы наружу на край,
+    # чтобы полупрозрачные пиксели края имели цвет самого голубя, а не белого фона студии.
+    inpaint_mask = (~core_bird).astype(np.uint8) * 255
+    arr_uint8 = np.clip(arr, 0, 255).astype(np.uint8)
+    inpainted = cv2.inpaint(arr_uint8, inpaint_mask, 8, cv2.INPAINT_TELEA).astype(np.float32)
 
-    # Inpaint цвета тела птицы в полупрозрачные пиксели (alpha < 0.65)
-    mask_inpaint = ((alpha_smooth > 0.0) & (alpha_smooth < 0.65)).astype(np.uint8) * 255
-    inpainted = cv2.inpaint(arr.astype(np.uint8), mask_inpaint, 3, cv2.INPAINT_TELEA).astype(np.float32)
+    # Формируем итоговые RGB-каналы:
+    # Для всех краевых пикселей (0 < alpha <= 0.92) используем цвет inpainted (чистый цвет птицы)
+    final_rgb = arr.copy()
+    edge_mask = (alpha_smooth > 0.0) & (alpha_smooth <= 0.92)
+    final_rgb[edge_mask] = inpainted[edge_mask]
 
-    blend_factor = np.clip((alpha_smooth[:, :, None] - 0.08) / (0.65 - 0.08), 0.0, 1.0)
-    final_rgb = blend_factor * unblended + (1.0 - blend_factor) * inpainted
-    final_rgb = np.clip(final_rgb, 0.0, 255.0)
+    # Ниже 1650 на лапах убираем любые белые/светло-серые блики стола:
+    lower_white_fringe = is_lower & (alpha_smooth > 0.0) & (final_rgb.mean(axis=-1) > 140) & (final_rgb.max(axis=-1) - final_rgb.min(axis=-1) < 40)
+    alpha_smooth[lower_white_fringe] = 0.0
 
-    rgba = np.dstack([final_rgb.astype(np.uint8), (alpha_smooth * 255.0).astype(np.uint8)])
-    base_rgba = Image.fromarray(rgba, "RGBA")
-    return base_rgba, fg_clean
+    final_rgb = np.clip(final_rgb, 0.0, 255.0).astype(np.uint8)
+    final_alpha = (alpha_smooth * 255.0).astype(np.uint8)
+    final_rgb[final_alpha == 0] = [0, 0, 0]
+
+    rgba = np.dstack([final_rgb, final_alpha])
+    return Image.fromarray(rgba, "RGBA"), fg_clean
 
 
 def build_solid_neck_mask(
@@ -273,10 +272,27 @@ def extract_eyes_layer(
 def save_webp(img: Image.Image, out_path: Path):
     """
     Ресайзит до целевого размера 512x512 с высококачественным фильтром LANCZOS и сохраняет в WebP.
+    Гарантирует 100% чистый альфа-канал и отсечение любых паразитных белых пикселей фона.
     """
     resized = img.resize(TARGET_SIZE, Image.Resampling.LANCZOS)
+    arr = np.array(resized)
+
+    # Очистка ультра-слабых субпикселей шума
+    arr[arr[:, :, 3] < 15, 3] = 0
+
+    # На уровне пола (нижние 20% изображения) отсекаем любые остаточные светлые нейтральные пиксели стола
+    is_bottom = np.arange(TARGET_SIZE[1])[:, None] > 410
+    means = arr[:, :, :3].mean(axis=-1)
+    diffs = arr[:, :, :3].max(axis=-1) - arr[:, :, :3].min(axis=-1)
+    bottom_table_reflection = is_bottom & (means > 140) & (diffs < 35)
+    arr[bottom_table_reflection, 3] = 0
+
+    # Обнуляем RGB для прозрачных пикселей, чтобы WebP не интерполировал цвет фона
+    arr[arr[:, :, 3] == 0, :3] = 0
+
+    clean_img = Image.fromarray(arr, "RGBA")
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    resized.save(out_path, "WEBP", quality=92, method=6)
+    clean_img.save(out_path, "WEBP", quality=95, method=6)
 
 
 def main():
