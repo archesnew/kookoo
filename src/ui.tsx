@@ -91,6 +91,73 @@ const EYE_TRAIT_MAP: Record<string, string> = {
   "10": "crazy",
 };
 
+export const PIGEON_SKIN_COLORS: Record<string, string> = {
+  // Базовые по 6 редкостям
+  common: "#93a2b4",
+  uncommon: "#63dd9c",
+  rare: "#58a7ff",
+  epic: "#bd67fa",
+  legendary: "#ffc629",
+  mythic: "#fa7bdf",
+  // 18 кастомных окрасов
+  "wedding-white": "#f0f4f8",
+  "sandy-cappuccino": "#c8ad8d",
+  "obsidian-black": "#2d2b38",
+  "peacock-emerald": "#00a877",
+  "golden-gilded": "#ffd700",
+  "cosmic-holographic": "#a084dc",
+  "fire-lava": "#ff4500",
+  "pink-flamingo": "#ff70a6",
+  "cyberpunk-neon": "#00f0ff",
+  "blue-frost-ice": "#a0e7e5",
+  "spotted-leopard": "#e3a857",
+  "iridescent-oil-slick": "#6c5ce7",
+  "zebra-sketch": "#555555",
+  "firework-neon-splash": "#ff007f",
+  "pumpkin-orange": "#ff7518",
+  "shimmering-ruby-quartz": "#c71585",
+  "patchwork-plush": "#b5838d",
+  "cherry-blossom": "#ffcccc",
+};
+
+export function getPigeonSkinColor(
+  skin?: string | null,
+  rarityIndex: number = 0
+): string {
+  if (skin && PIGEON_SKIN_COLORS[skin]) {
+    return PIGEON_SKIN_COLORS[skin];
+  }
+  const raritySlug = RARITY_SLUGS[rarityIndex] || "common";
+  return PIGEON_SKIN_COLORS[raritySlug] || "#93a2b4";
+}
+
+export const DEV_SKIN_OPTIONS = [
+  { id: "common", label: "Обычный (common)" },
+  { id: "uncommon", label: "Необычный (uncommon)" },
+  { id: "rare", label: "Редкий (rare)" },
+  { id: "epic", label: "Эпический (epic)" },
+  { id: "legendary", label: "Легендарный (legendary)" },
+  { id: "mythic", label: "Мифический (mythic)" },
+  { id: "wedding-white", label: "Свадебный белый" },
+  { id: "sandy-cappuccino", label: "Песочный капучино" },
+  { id: "obsidian-black", label: "Обсидиановый чёрный" },
+  { id: "peacock-emerald", label: "Павлиний изумруд" },
+  { id: "golden-gilded", label: "Золотое тиснение" },
+  { id: "cosmic-holographic", label: "Космический голографик" },
+  { id: "fire-lava", label: "Огненная лава" },
+  { id: "pink-flamingo", label: "Розовый фламинго" },
+  { id: "cyberpunk-neon", label: "Киберпанк неон" },
+  { id: "blue-frost-ice", label: "Ледяной иней" },
+  { id: "spotted-leopard", label: "Пятнистый леопард" },
+  { id: "iridescent-oil-slick", label: "Бензиновый перелив" },
+  { id: "zebra-sketch", label: "Зебра скетч" },
+  { id: "firework-neon-splash", label: "Неоновый салют" },
+  { id: "pumpkin-orange", label: "Тыквенный оранжевый" },
+  { id: "shimmering-ruby-quartz", label: "Рубиновый кварц" },
+  { id: "patchwork-plush", label: "Лоскутный плюш" },
+  { id: "cherry-blossom", label: "Цветение сакуры" },
+] as const;
+
 const DEV_EYE_OPTIONS = [
   { id: "grumpy", label: "Базовый (grumpy)" },
   { id: "sparkle", label: "Сияющий (sparkle)" },
@@ -108,6 +175,10 @@ function Pigeon({
   rarityIndex,
   feedEffect,
   eyeTrait = "grumpy",
+  skinTrait,
+  shoesTrait,
+  clothingTrait,
+  hatTrait,
   onFeed,
   cost,
   canFeed = true,
@@ -119,6 +190,10 @@ function Pigeon({
   rarityIndex: number;
   feedEffect: number;
   eyeTrait?: string;
+  skinTrait?: string;
+  shoesTrait?: string | null;
+  clothingTrait?: string | null;
+  hatTrait?: string | null;
   onFeed?: () => void;
   cost?: number;
   canFeed?: boolean;
@@ -130,10 +205,15 @@ function Pigeon({
   const [imgError, setImgError] = useState(false);
   const raritySlug = RARITY_SLUGS[rarityIndex] || "common";
   const resolvedEye = EYE_TRAIT_MAP[eyeTrait] || eyeTrait || "grumpy";
+  const skinColor = getPigeonSkinColor(skinTrait, rarityIndex);
+  const pigeon = {
+    skinColor,
+    skin: skinTrait || raritySlug,
+  };
 
   useEffect(() => {
     setImgError(false);
-  }, [rarityIndex, eyeTrait]);
+  }, [rarityIndex, eyeTrait, skinTrait]);
 
   // Число точек индикации (минимум 3 для ощущения карусели, как в home.png)
   const totalDots = Math.max(birdsCount, 3);
@@ -216,7 +296,7 @@ function Pigeon({
               onError={() => setImgError(true)}
             />
 
-            {/* Слой шеи (z-index: 20, для common не выводится) */}
+            {/* Слой шеи (z-index: 15, для common не выводится) */}
             {raritySlug !== "common" && (
               <img
                 src={`/assets/pigeon/neck-${raritySlug}.webp`}
@@ -226,17 +306,76 @@ function Pigeon({
               />
             )}
 
-            {/* Слой глаз (z-index: 30, для grumpy не выводится) */}
-            {resolvedEye !== "grumpy" && (
+            {/* Слой обуви (z-index: 20) */}
+            {shoesTrait && (
               <img
-                src={`/assets/pigeon/eyes-${resolvedEye}.webp`}
-                alt={`Взгляд: ${resolvedEye}`}
-                className="pigeon-layer layer-eyes"
-                onError={() => setImgError(true)}
+                src={`/assets/pigeon/shoes-${shoesTrait}.webp`}
+                alt={`Обувь: ${shoesTrait}`}
+                className="pigeon-layer layer-shoes"
+                onError={(e) => {
+                  (e.currentTarget as HTMLElement).style.display = "none";
+                }}
               />
             )}
 
-            {/* Анимация крошек/семян при кормлении */}
+            {/* Слой одежды (z-index: 30) */}
+            {clothingTrait && (
+              <img
+                src={`/assets/pigeon/clothing-${clothingTrait}.webp`}
+                alt={`Одежда: ${clothingTrait}`}
+                className="pigeon-layer layer-clothing"
+                onError={(e) => {
+                  (e.currentTarget as HTMLElement).style.display = "none";
+                }}
+              />
+            )}
+
+            {/* Слой век и эмоций (z-index: 40, динамическое тонирование кодом под окрас) */}
+            {resolvedEye !== "grumpy" && (
+              <img
+                src={`/assets/pigeon/eyelids-${resolvedEye}.webp`}
+                alt={`Веки: ${resolvedEye}`}
+                className="pigeon-layer layer-eyelids"
+                style={{
+                  mixBlendMode: "multiply",
+                  filter: "drop-shadow(0 0 0 " + pigeon.skinColor + ")",
+                }}
+                onError={(e) => {
+                  (e.currentTarget as HTMLElement).style.display = "none";
+                }}
+              />
+            )}
+
+            {/* Слой зрачков и белков глаз (z-index: 50, чистые белки без тонирования) */}
+            {resolvedEye !== "grumpy" && (
+              <img
+                src={`/assets/pigeon/eyes_${resolvedEye}.webp`}
+                alt={`Взгляд: ${resolvedEye}`}
+                className="pigeon-layer layer-eyes"
+                onError={(e) => {
+                  const target = e.currentTarget as HTMLImageElement;
+                  if (!target.src.includes(`eyes-${resolvedEye}.webp`)) {
+                    target.src = `/assets/pigeon/eyes-${resolvedEye}.webp`;
+                  } else {
+                    target.style.display = "none";
+                  }
+                }}
+              />
+            )}
+
+            {/* Слой головного убора (z-index: 60) */}
+            {hatTrait && (
+              <img
+                src={`/assets/pigeon/hat-${hatTrait}.webp`}
+                alt={`Головной убор: ${hatTrait}`}
+                className="pigeon-layer layer-hat"
+                onError={(e) => {
+                  (e.currentTarget as HTMLElement).style.display = "none";
+                }}
+              />
+            )}
+
+            {/* Анимация крошек/семян при кормлении (z-index: 70) */}
             <svg
               className="pigeon-layer layer-burst"
               viewBox="0 0 360 440"
@@ -523,6 +662,7 @@ export default function App() {
   const [splashFading, setSplashFading] = useState(false);
   const [previewRarity, setPreviewRarity] = useState<number | null>(null);
   const [previewEyes, setPreviewEyes] = useState<string | null>(null);
+  const [previewSkin, setPreviewSkin] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setCounter(Date.now()), 1000);
@@ -556,8 +696,10 @@ export default function App() {
     s.birds.find((b) => b.id === s.activeBirdId) ?? s.birds[s.birdIndex];
   const rarityIndex = bird?.rarity ?? s.rarity;
   const eyeTrait = bird?.traits?.eyes || "grumpy";
+  const skinTrait = bird?.traits?.skin || RARITY_SLUGS[rarityIndex] || "common";
   const activeRarity = previewRarity ?? rarityIndex;
   const activeEyes = previewEyes ?? eyeTrait;
+  const activeSkin = previewSkin ?? skinTrait;
   const feeds = bird?.cycleFeeds ?? s.cycleFeeds;
   const startedAt = bird?.cycleStartedAt ?? s.cycleStartedAt;
   const expired =
@@ -736,6 +878,10 @@ export default function App() {
             rarityIndex={activeRarity}
             feedEffect={s.feedEffect}
             eyeTrait={activeEyes}
+            skinTrait={activeSkin}
+            shoesTrait={bird?.traits?.shoes}
+            clothingTrait={bird?.traits?.clothing}
+            hatTrait={bird?.traits?.hat}
             onFeed={handleFeed}
             cost={cost}
             canFeed={s.seeds >= cost}
@@ -792,13 +938,16 @@ export default function App() {
             <div className="dev-preview-panel">
               <div className="dev-preview-header">
                 <small>🛠 DEV ПРЕВЬЮ СЛОЁВ ГОЛУБЯ</small>
-                {(previewRarity !== null || previewEyes !== null) && (
+                {(previewRarity !== null ||
+                  previewEyes !== null ||
+                  previewSkin !== null) && (
                   <button
                     type="button"
                     className="dev-preview-reset"
                     onClick={() => {
                       setPreviewRarity(null);
                       setPreviewEyes(null);
+                      setPreviewSkin(null);
                     }}
                   >
                     ↺ Сброс
@@ -826,6 +975,19 @@ export default function App() {
                     onChange={(e) => setPreviewEyes(e.target.value)}
                   >
                     {DEV_EYE_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Окрас:</span>
+                  <select
+                    value={activeSkin}
+                    onChange={(e) => setPreviewSkin(e.target.value)}
+                  >
+                    {DEV_SKIN_OPTIONS.map((opt) => (
                       <option key={opt.id} value={opt.id}>
                         {opt.label}
                       </option>

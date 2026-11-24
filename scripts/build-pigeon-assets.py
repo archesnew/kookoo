@@ -269,6 +269,33 @@ def extract_eyes_layer(
     return Image.fromarray(rgba, "RGBA")
 
 
+def extract_eyelids_and_pupils(eyes_img: Image.Image) -> tuple[Image.Image, Image.Image]:
+    """
+    Разделяет слой взгляда на веки/кожу (eyelids) и зрачки/белки (eyes) для Варианта Б (динамическое тонирование).
+    - eyelids: участки кожи/век голубя (нейтральные серые тона для умножения на цвет скина).
+    - eyes: белки (sclera), зрачки и световые эффекты (остаются без тонирования).
+    """
+    arr = np.array(eyes_img)
+    vis = arr[:, :, 3] > 20
+    diff = arr[:, :, :3].max(axis=-1) - arr[:, :, :3].min(axis=-1)
+    means = arr[:, :, :3].mean(axis=-1)
+
+    is_eyelid = vis & (means >= 60) & (means <= 175) & (diff < 35)
+    is_eyeball = vis & (~is_eyelid)
+
+    # Веки
+    arr_lids = arr.copy()
+    arr_lids[~is_eyelid, 3] = 0
+    img_lids = Image.fromarray(arr_lids, "RGBA")
+
+    # Зрачки и белки
+    arr_eyes = arr.copy()
+    arr_eyes[~is_eyeball, 3] = 0
+    img_eyes = Image.fromarray(arr_eyes, "RGBA")
+
+    return img_lids, img_eyes
+
+
 def save_webp(img: Image.Image, out_path: Path):
     """
     Ресайзит до целевого размера 512x512 с высококачественным фильтром LANCZOS и сохраняет в WebP.
@@ -341,7 +368,14 @@ def main():
         eyes_layer = extract_eyes_layer(eyes_raw, base_arr, fg_clean)
         dst_path = OUT_DIR / dst_name
         save_webp(eyes_layer, dst_path)
-        print(f"  ✓ {src_name} -> {dst_name}")
+
+        # Вариант Б: разделение на веки (eyelids) и зрачки/белки (eyes)
+        eyelids_img, pupils_img = extract_eyelids_and_pupils(eyes_layer)
+        trait_key = dst_name.replace("eyes-", "").replace(".webp", "")
+        save_webp(eyelids_img, OUT_DIR / f"eyelids-{trait_key}.webp")
+        save_webp(eyelids_img, OUT_DIR / f"eyelids_{trait_key}.webp")
+        save_webp(pupils_img, OUT_DIR / f"eyes_{trait_key}.webp")
+        print(f"  ✓ {src_name} -> {dst_name} + eyelids_{trait_key}.webp + eyes_{trait_key}.webp")
 
     # Синхронизация с параллельной директорией при наличии
     if ALT_OUT_DIR.parent.parent.exists():

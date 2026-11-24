@@ -67,6 +67,7 @@ export interface PigeonTraits {
   clothing?: string | null;
   hat?: string | null;
   tattoo?: string | null;
+  skin?: string | null;
 }
 
 /* ───────── Генератор детерминированного RNG ───────── */

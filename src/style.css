@@ -613,15 +613,34 @@ button:disabled {
 }
 
 .pigeon-layer.layer-neck {
+  z-index: 15;
+}
+
+.pigeon-layer.layer-shoes {
   z-index: 20;
 }
 
-.pigeon-layer.layer-eyes {
+.pigeon-layer.layer-clothing {
   z-index: 30;
 }
 
-.pigeon-layer.layer-burst {
+.pigeon-layer.layer-eyelids {
   z-index: 40;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+.pigeon-layer.layer-eyes {
+  z-index: 50;
+  pointer-events: none;
+}
+
+.pigeon-layer.layer-hat {
+  z-index: 60;
+}
+
+.pigeon-layer.layer-burst {
+  z-index: 70;
 }
 
 .pigeon-stage.fed .pigeon-layers,
@@ -892,10 +911,12 @@ button:disabled {
   display: flex;
   gap: 8px;
   width: 100%;
+  flex-wrap: wrap;
 }
 
 .dev-preview-controls label {
-  flex: 1;
+  flex: 1 1 30%;
+  min-width: 95px;
   display: flex;
   flex-direction: column;
   gap: 3px;
