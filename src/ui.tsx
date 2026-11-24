@@ -111,6 +111,10 @@ function Pigeon({
   onFeed,
   cost,
   canFeed = true,
+  birdIndex = 0,
+  birdsCount = 1,
+  onCycle,
+  onSelectIndex,
 }: {
   rarityIndex: number;
   feedEffect: number;
@@ -118,6 +122,10 @@ function Pigeon({
   onFeed?: () => void;
   cost?: number;
   canFeed?: boolean;
+  birdIndex?: number;
+  birdsCount?: number;
+  onCycle?: (dir: number) => void;
+  onSelectIndex?: (idx: number) => void;
 }) {
   const [imgError, setImgError] = useState(false);
   const raritySlug = RARITY_SLUGS[rarityIndex] || "common";
@@ -127,73 +135,122 @@ function Pigeon({
     setImgError(false);
   }, [rarityIndex, eyeTrait]);
 
+  // Число точек индикации (минимум 3 для ощущения карусели, как в home.png)
+  const totalDots = Math.max(birdsCount, 3);
+  const dotsList = Array.from({ length: totalDots }, (_, i) => i);
+
   return (
-    <button
-      type="button"
-      className={`pigeon-stage rarity-${rarityIndex} ${
-        feedEffect ? "fed" : ""
-      } ${!canFeed ? "cant-feed" : ""}`}
-      key={feedEffect}
-      onClick={onFeed}
-      aria-label={
-        canFeed
-          ? `Покормить голубя (стоимость: ${cost ?? 1} семечек)`
-          : `Недостаточно семечек для кормления (${cost ?? 1} семечек)`
-      }
+    <div
+      className={`pigeon-stage-container rarity-${rarityIndex}`}
+      style={{ "--rarity": colors[rarityIndex] } as React.CSSProperties}
     >
-      <div className="pigeon-halo" />
-      <div className="pigeon-orbit orbit-one" />
-      <div className="pigeon-orbit orbit-two" />
-
-      {!imgError ? (
-        <div
-          className="pigeon-layers"
-          role="img"
-          aria-label={`Голубь KOO KOO, редкость: ${rarity[rarityIndex]}`}
+      {/* Боковая стрелка переключения влево */}
+      {onCycle && (
+        <button
+          type="button"
+          className="stage-arrow arrow-prev"
+          aria-label="Предыдущий голубь"
+          disabled={birdIndex === 0}
+          onClick={(e) => {
+            e.stopPropagation();
+            onCycle(-1);
+          }}
         >
-          {/* Базовое тело (z-index: 10) */}
-          <img
-            src="/assets/pigeon/body-base.webp"
-            alt="Базовое тело голубя"
-            className="pigeon-layer layer-base"
-            onError={() => setImgError(true)}
-          />
+          ‹
+        </button>
+      )}
 
-          {/* Слой шеи (z-index: 20, для common не выводится) */}
-          {raritySlug !== "common" && (
-            <img
-              src={`/assets/pigeon/neck-${raritySlug}.webp`}
-              alt={`Шея: ${rarity[rarityIndex]}`}
-              className="pigeon-layer layer-neck"
-              onError={() => setImgError(true)}
+      {/* Интерактивная сцена для тапа/корма */}
+      <button
+        type="button"
+        className={`pigeon-stage ${feedEffect ? "fed" : ""} ${
+          !canFeed ? "cant-feed" : ""
+        }`}
+        key={feedEffect}
+        onClick={onFeed}
+        aria-label={
+          canFeed
+            ? `Покормить голубя (стоимость: ${cost ?? 1} семечек)`
+            : `Недостаточно семечек для кормления (${cost ?? 1} семечек)`
+        }
+      >
+        {/* Мягкий фоновый мотив семечка позади голубя (как в home.png) */}
+        <div className="seed-backdrop-motif" aria-hidden="true">
+          <svg viewBox="0 0 200 260" className="seed-motif-svg">
+            <path
+              d="M100 12 C155 60 185 135 155 205 C125 255 75 255 45 205 C15 135 45 60 100 12 Z"
+              fill="url(#seedMotifGrad)"
             />
-          )}
-
-          {/* Слой глаз (z-index: 30, для grumpy не выводится) */}
-          {resolvedEye !== "grumpy" && (
-            <img
-              src={`/assets/pigeon/eyes-${resolvedEye}.webp`}
-              alt={`Взгляд: ${resolvedEye}`}
-              className="pigeon-layer layer-eyes"
-              onError={() => setImgError(true)}
-            />
-          )}
-
-          {/* Анимация крошек/семян при кормлении */}
-          <svg
-            className="pigeon-layer layer-burst"
-            viewBox="0 0 360 440"
-            aria-hidden="true"
-          >
-            <g className="seed-burst" fill="#FFC629">
-              <path d="M74 173q5-8 10 0-5 12-10 0Z" />
-              <path d="M280 209q5-8 10 0-5 12-10 0Z" />
-              <path d="M89 281q5-8 10 0-5 12-10 0Z" />
-              <path d="M271 300q5-8 10 0-5 12-10 0Z" />
-            </g>
+            <defs>
+              <linearGradient id="seedMotifGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="var(--rarity)" stopOpacity="0.22" />
+                <stop offset="60%" stopColor="var(--rarity)" stopOpacity="0.08" />
+                <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+              </linearGradient>
+            </defs>
           </svg>
         </div>
-      ) : (
+
+        {/* Радиальное свечение в цвет редкости */}
+        <div className="pigeon-halo" />
+
+        {/* Круглый светящийся подиум в цвет редкости под ногами голубя */}
+        <div className="circular-podium" aria-hidden="true">
+          <div className="podium-disc-glow" />
+          <div className="podium-disc" />
+          <div className="podium-ring-outer" />
+          <div className="podium-ring-inner" />
+        </div>
+
+        {!imgError ? (
+          <div
+            className="pigeon-layers"
+            role="img"
+            aria-label={`Голубь KOO KOO, редкость: ${rarity[rarityIndex]}`}
+          >
+            {/* Базовое тело (z-index: 10) */}
+            <img
+              src="/assets/pigeon/body-base.webp"
+              alt="Базовое тело голубя"
+              className="pigeon-layer layer-base"
+              onError={() => setImgError(true)}
+            />
+
+            {/* Слой шеи (z-index: 20, для common не выводится) */}
+            {raritySlug !== "common" && (
+              <img
+                src={`/assets/pigeon/neck-${raritySlug}.webp`}
+                alt={`Шея: ${rarity[rarityIndex]}`}
+                className="pigeon-layer layer-neck"
+                onError={() => setImgError(true)}
+              />
+            )}
+
+            {/* Слой глаз (z-index: 30, для grumpy не выводится) */}
+            {resolvedEye !== "grumpy" && (
+              <img
+                src={`/assets/pigeon/eyes-${resolvedEye}.webp`}
+                alt={`Взгляд: ${resolvedEye}`}
+                className="pigeon-layer layer-eyes"
+                onError={() => setImgError(true)}
+              />
+            )}
+
+            {/* Анимация крошек/семян при кормлении */}
+            <svg
+              className="pigeon-layer layer-burst"
+              viewBox="0 0 360 440"
+              aria-hidden="true"
+            >
+              <g className="seed-burst" fill="#FFC629">
+                <path d="M74 173q5-8 10 0-5 12-10 0Z" />
+                <path d="M280 209q5-8 10 0-5 12-10 0Z" />
+                <path d="M89 281q5-8 10 0-5 12-10 0Z" />
+                <path d="M271 300q5-8 10 0-5 12-10 0Z" />
+              </g>
+            </svg>
+          </div>
+        ) : (
         <>
           <svg
             className="pigeon-art"
@@ -410,11 +467,52 @@ function Pigeon({
       <span className="temp-art-label">ВРЕМЕННЫЙ КОНЦЕПТ</span>
     </>
   )}
-  <span className="pigeon-tap-hint" aria-hidden="true">
-    Тапни, чтобы покормить
-  </span>
-</button>
-);
+      <span className="pigeon-tap-hint" aria-hidden="true">
+        Тапни, чтобы покормить
+      </span>
+    </button>
+
+    {/* Боковая стрелка переключения вправо */}
+    {onCycle && (
+      <button
+        type="button"
+        className="stage-arrow arrow-next"
+        aria-label="Следующий голубь"
+        disabled={birdIndex >= birdsCount - 1}
+        onClick={(e) => {
+          e.stopPropagation();
+          onCycle(1);
+        }}
+      >
+        ›
+      </button>
+    )}
+
+    {/* Точки-индикаторы карусели голубей под сценой */}
+    <div className="stage-dots" role="tablist" aria-label="Выбор голубя">
+      {dotsList.map((idx) => {
+        const isExisting = idx < birdsCount;
+        return (
+          <button
+            key={idx}
+            type="button"
+            className={`stage-dot ${idx === birdIndex ? "active" : ""} ${
+              !isExisting ? "slot-empty" : ""
+            }`}
+            disabled={!isExisting || idx === birdIndex}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isExisting && onSelectIndex) onSelectIndex(idx);
+            }}
+            aria-label={
+              isExisting ? `Голубь ${idx + 1}` : `Слот ${idx + 1}`
+            }
+          />
+        );
+      })}
+    </div>
+  </div>
+  );
 }
 
 export default function App() {
@@ -579,58 +677,58 @@ export default function App() {
       )}
 
       <header className="topbar">
-        <div className="brand">
-          <img
-            src="/assets/brand/logo-koo-koo.webp"
-            alt="KOO KOO"
-            className="brand-logo-img"
-          />
+        <div className="user-profile">
+          <div className="avatar-wrapper">
+            <img
+              src="/assets/brand/user-avatar.webp"
+              alt="Аватар игрока"
+              className="user-avatar-img"
+            />
+            <span className="avatar-level-badge">{s.level}</span>
+          </div>
+          <div className="user-info">
+            <span className="user-name">Игрок</span>
+            <span className="user-title">KOO KOO</span>
+          </div>
         </div>
-        <div className="balance">
-          <img
-            src="/assets/brand/seed-icon.webp"
-            alt=""
-            className="balance-seed-icon"
-            aria-hidden="true"
-          />
-          <b>{s.seeds.toLocaleString("ru-RU")}</b>
+
+        <div className="top-counters">
+          <div
+            className="counter-pill seeds-pill"
+            aria-label={`Семечки: ${s.seeds}`}
+          >
+            <img
+              src="/assets/brand/seed-icon.webp"
+              alt=""
+              className="pill-icon"
+              aria-hidden="true"
+            />
+            <b>{s.seeds.toLocaleString("ru-RU")}</b>
+          </div>
+          <div
+            className="counter-pill score-pill"
+            aria-label={`Очки опыта: ${s.xp}`}
+          >
+            <span className="star-icon" aria-hidden="true">⭐</span>
+            <b>{s.xp.toLocaleString("ru-RU")}</b>
+          </div>
         </div>
       </header>
 
       {s.screen === "home" ? (
         <section className="home-screen">
-          <div className="bird-heading">
-            <div className="rank">
-              <span
-                style={
-                  { "--rarity": colors[activeRarity] } as React.CSSProperties
-                }
-              />
-              {rarity[activeRarity]}
+          <div
+            className={`bird-heading rarity-${activeRarity}`}
+            style={{ "--rarity": colors[activeRarity] } as React.CSSProperties}
+          >
+            <div className="rarity-badge-top">
+              <span className="rarity-dot" />
+              <span>{rarity[activeRarity]}</span>
             </div>
             <div className="bird-title">
-              <div>
-                <h1>{formatBirdNumber(bird, s.birdIndex)}</h1>
-                <small>
-                  {rarity[activeRarity]} · Ур. {s.level}
-                </small>
-              </div>
-              <div className="switch">
-                <button
-                  aria-label="Предыдущий голубь"
-                  disabled={s.birdIndex === 0}
-                  onClick={() => s.cycleBird(-1)}
-                >
-                  ‹
-                </button>
-                <button
-                  aria-label="Следующий голубь"
-                  disabled={s.birdIndex >= s.birds.length - 1}
-                  onClick={() => s.cycleBird(1)}
-                >
-                  ›
-                </button>
-              </div>
+              <h1 className="bird-number-title">
+                {formatBirdNumber(bird, s.birdIndex)}
+              </h1>
             </div>
           </div>
 
@@ -641,6 +739,10 @@ export default function App() {
             onFeed={handleFeed}
             cost={cost}
             canFeed={s.seeds >= cost}
+            birdIndex={s.birdIndex}
+            birdsCount={s.birds.length}
+            onCycle={(dir) => s.cycleBird(dir)}
+            onSelectIndex={(idx) => useGame.setState({ birdIndex: idx })}
           />
 
           <div className="unified-progress-card">

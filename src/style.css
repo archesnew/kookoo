@@ -71,15 +71,129 @@ button:disabled {
   isolation: isolate;
 }
 
-/* ─── Верхняя панель ─── */
+/* ─── Верхняя панель (Профиль игрока + Счетчики) ─── */
 .topbar {
-  height: 44px;
+  height: 48px;
   flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px;
 }
 
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.avatar-wrapper {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex: none;
+}
+
+.user-avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid #ffc629;
+  box-shadow: 0 0 10px rgba(255, 198, 41, 0.4), 0 2px 8px rgba(0, 0, 0, 0.5);
+  display: block;
+}
+
+.avatar-level-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -3px;
+  background: linear-gradient(135deg, #ffc629, #e59d00);
+  color: #1a0c00;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 8px;
+  border: 1.5px solid #130a1e;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.user-name {
+  font-size: 13px;
+  font-weight: 800;
+  color: #f7f4fc;
+  letter-spacing: -0.01em;
+}
+
+.user-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: #9f8fae;
+  letter-spacing: 0.04em;
+}
+
+.top-counters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.counter-pill {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(26, 17, 36, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  padding: 0 10px;
+  font-size: 12px;
+  color: #f5f2f9;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s, border-color 0.15s;
+}
+
+.counter-pill b {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.counter-pill .pill-icon {
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+  flex: none;
+  filter: drop-shadow(0 0 5px rgba(255, 198, 41, 0.7));
+}
+
+.seeds-pill {
+  border-color: rgba(255, 198, 41, 0.35);
+}
+
+.score-pill {
+  border-color: rgba(168, 120, 220, 0.28);
+}
+
+.star-icon {
+  font-size: 13px;
+  line-height: 1;
+  filter: drop-shadow(0 0 5px rgba(255, 216, 107, 0.8));
+}
+
+/* Старые классы бренда и баланса для совместимости */
 .brand {
   display: flex;
   flex-direction: column;
@@ -155,12 +269,58 @@ button:disabled {
   overflow: hidden;
 }
 
+/* ─── Заголовок голубя и бейдж редкости ─── */
 .bird-heading {
-  z-index: 1;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: 8px;
+  padding-top: 4px;
+}
+
+.rarity-badge-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--rarity) 16%, rgba(20, 12, 30, 0.82));
+  border: 1px solid color-mix(in srgb, var(--rarity) 48%, transparent);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35), 0 0 12px color-mix(in srgb, var(--rarity) 25%, transparent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--rarity);
+  text-transform: uppercase;
+}
+
+.rarity-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--rarity);
+  box-shadow: 0 0 8px var(--rarity);
+  flex: none;
+}
+
+.bird-title {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  margin-top: 4px;
+  position: relative;
+}
+
+.bird-number-title {
+  font-size: 26px;
+  line-height: 1.1;
+  margin: 0;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
 }
 
 .rank {
@@ -183,24 +343,6 @@ button:disabled {
   border-radius: 50%;
   background: var(--rarity);
   box-shadow: 0 0 10px var(--rarity);
-}
-
-.bird-title {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  margin-top: 8px;
-  position: relative;
-}
-
-.bird-title h1 {
-  font-size: 26px;
-  line-height: 1.1;
-  margin: 0;
-  font-weight: 800;
-  letter-spacing: -.03em;
 }
 
 .bird-title small {
@@ -249,17 +391,85 @@ button:disabled {
   pointer-events: none;
 }
 
-/* ─── Арт голубя ─── */
-.pigeon-stage {
+/* ─── Контейнер сцены голубя ─── */
+.pigeon-stage-container {
   --rarity: #aeb5c2;
   position: relative;
   flex: 1;
   min-height: 0;
   width: 100%;
   max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.pigeon-stage-container.rarity-0 { --rarity: #aeb5c2; }
+.pigeon-stage-container.rarity-1 { --rarity: #63dd9c; }
+.pigeon-stage-container.rarity-2 { --rarity: #58a7ff; }
+.pigeon-stage-container.rarity-3 { --rarity: #bd67fa; }
+.pigeon-stage-container.rarity-4 { --rarity: #ffc629; }
+.pigeon-stage-container.rarity-5 { --rarity: #fa7bdf; }
+
+/* Боковые стрелки переключения */
+.stage-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(30, 20, 42, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #f7f4fc;
+  font-size: 24px;
+  line-height: 1;
   display: grid;
   place-items: center;
-  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.3, 1), background 0.15s, opacity 0.15s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.stage-arrow.arrow-prev {
+  left: 2px;
+}
+
+.stage-arrow.arrow-next {
+  right: 2px;
+}
+
+.stage-arrow:hover:not(:disabled) {
+  background: rgba(48, 32, 68, 0.85);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.stage-arrow:active:not(:disabled) {
+  transform: translateY(-50%) scale(0.92);
+}
+
+.stage-arrow:disabled {
+  opacity: 0.22;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Сама интерактивная сцена (кнопка тапа для кормления) */
+.pigeon-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: visible;
   background: none;
   border: none;
   padding: 0;
@@ -282,29 +492,28 @@ button:disabled {
   border-radius: 24px;
 }
 
-.pigeon-tap-hint {
+/* Мягкий силуэт семечка на фоне (home.png) */
+.seed-backdrop-motif {
   position: absolute;
-  bottom: 8px;
-  z-index: 5;
-  background: rgba(16, 9, 25, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #d1c4df;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  padding: 4px 12px;
-  border-radius: 12px;
-  backdrop-filter: blur(6px);
+  top: 48%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(78vw, 320px);
+  height: min(88vw, 360px);
   pointer-events: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  animation: pulse-hint 2.5s ease-in-out infinite;
+  z-index: 0;
+  opacity: 0.9;
+  display: grid;
+  place-items: center;
 }
 
-@keyframes pulse-hint {
-  0%, 100% { opacity: 0.85; transform: translateY(0); }
-  50% { opacity: 1; transform: translateY(-2px); }
+.seed-motif-svg {
+  width: 100%;
+  height: 100%;
+  filter: blur(20px);
 }
 
+/* Радиальное фоновое свечение в цвет редкости */
 .pigeon-halo {
   position: absolute;
   width: min(84vw, 360px);
@@ -314,11 +523,59 @@ button:disabled {
   background: radial-gradient(circle, color-mix(in srgb, var(--rarity) 35%, transparent) 0%, color-mix(in srgb, var(--rarity) 12%, transparent) 40%, transparent 70%);
   filter: blur(18px);
   transition: background .5s;
+  pointer-events: none;
 }
 
+/* Круглый светящийся подиум под лапами */
+.circular-podium {
+  position: absolute;
+  bottom: 8%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(76vw, 290px);
+  height: 64px;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.podium-disc-glow {
+  position: absolute;
+  inset: -14px -18px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--rarity) 42%, transparent) 0%, color-mix(in srgb, var(--rarity) 15%, transparent) 45%, transparent 70%);
+  filter: blur(12px);
+  opacity: 0.85;
+}
+
+.podium-disc {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 35%, color-mix(in srgb, var(--rarity) 24%, #1e132b) 0%, #150a22 65%, #0d0615 100%);
+  border: 1.5px solid color-mix(in srgb, var(--rarity) 65%, transparent);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--rarity) 45%, transparent), inset 0 2px 10px color-mix(in srgb, var(--rarity) 35%, transparent);
+}
+
+.podium-ring-outer {
+  position: absolute;
+  inset: -6px -10px;
+  border-radius: 50%;
+  border: 1px dashed color-mix(in srgb, var(--rarity) 35%, transparent);
+  opacity: 0.75;
+}
+
+.podium-ring-inner {
+  position: absolute;
+  inset: 10px 18px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--rarity) 45%, transparent);
+  opacity: 0.85;
+}
+
+/* Слои голубя (поверх подиума z-index: 6) */
 .pigeon-art {
   position: relative;
-  z-index: 1;
+  z-index: 6;
   width: min(88%, 340px);
   height: 100%;
   max-height: 100%;
@@ -329,7 +586,7 @@ button:disabled {
 
 .pigeon-layers {
   position: relative;
-  z-index: 1;
+  z-index: 6;
   width: min(88vw, 340px);
   height: min(88vw, 340px);
   max-height: 100%;
@@ -365,10 +622,49 @@ button:disabled {
   z-index: 40;
 }
 
-.pigeon-stage.fed .pigeon-layers {
+.pigeon-stage.fed .pigeon-layers,
+.pigeon-stage.fed .pigeon-art {
   animation: feed-bounce .68s cubic-bezier(.2, .8, .3, 1);
 }
 
+.pigeon-stage.fed:after {
+  content: '✦  +10 XP  ✦';
+  position: absolute;
+  top: 18%;
+  z-index: 12;
+  color: #ffe28b;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-shadow: 0 2px 12px #ffc629a8;
+  animation: rise .9s ease-out both;
+  pointer-events: none;
+}
+
+.pigeon-tap-hint {
+  position: absolute;
+  bottom: 8px;
+  z-index: 7;
+  background: rgba(16, 9, 25, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #d1c4df;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 4px 12px;
+  border-radius: 12px;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  animation: pulse-hint 2.5s ease-in-out infinite;
+}
+
+@keyframes pulse-hint {
+  0%, 100% { opacity: 0.85; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-2px); }
+}
+
+/* Орбиты и метки для совместимости */
 .pigeon-orbit {
   position: absolute;
   border: 1.5px solid color-mix(in srgb, var(--rarity) 18%, transparent);
@@ -404,21 +700,45 @@ button:disabled {
 .pigeon-stage.rarity-4 { --rarity: #ffc629; }
 .pigeon-stage.rarity-5 { --rarity: #fa7bdf; }
 
-.pigeon-stage.fed .pigeon-art {
-  animation: feed-bounce .68s cubic-bezier(.2, .8, .3, 1);
+/* Точки карусели под сценой */
+.stage-dots {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 8px;
 }
 
-.pigeon-stage.fed:after {
-  content: '✦  +10 XP  ✦';
-  position: absolute;
-  top: 18%;
-  z-index: 2;
-  color: #ffe28b;
-  font-size: 14px;
-  font-weight: 800;
-  letter-spacing: .04em;
-  text-shadow: 0 2px 12px #ffc629a8;
-  animation: rise .9s ease-out both;
+.stage-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.22);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
+  outline: none;
+}
+
+.stage-dot.active {
+  width: 20px;
+  background: var(--rarity, #ffd86b);
+  box-shadow: 0 0 8px var(--rarity, #ffd86b);
+}
+
+.stage-dot.slot-empty {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.stage-dot:focus-visible {
+  outline: 2px solid var(--rarity, #ffc629);
+  outline-offset: 2px;
 }
 
 /* ─── Единая плашка опыта и шагов до яйца ─── */
@@ -1286,6 +1606,35 @@ button:disabled {
     padding-left: 12px;
     padding-right: 12px;
   }
+  .topbar {
+    gap: 4px;
+  }
+  .counter-pill {
+    padding: 0 8px;
+    font-size: 11px;
+    height: 32px;
+  }
+  .avatar-wrapper {
+    width: 36px;
+    height: 36px;
+  }
+  .user-name {
+    font-size: 12px;
+  }
+  .user-title {
+    font-size: 9px;
+  }
+  .bird-number-title {
+    font-size: 22px;
+  }
+  .stage-arrow {
+    width: 32px;
+    height: 32px;
+    font-size: 20px;
+  }
+  .circular-podium {
+    height: 52px;
+  }
   .bottom-nav {
     left: 6px;
     right: 6px;
@@ -1338,11 +1687,19 @@ button:disabled {
   .bird-heading {
     padding-top: 2px;
   }
-  .bird-title h1 {
-    font-size: 23px;
+  .bird-title h1,
+  .bird-number-title {
+    font-size: 22px;
   }
   .pigeon-stage {
     margin-top: -8px;
+  }
+  .circular-podium {
+    bottom: 5%;
+    height: 48px;
+  }
+  .stage-dots {
+    bottom: 0px;
   }
   .unified-progress-card {
     padding: 8px 10px;
