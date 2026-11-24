@@ -120,45 +120,47 @@ export const PIGEON_SKIN_COLORS: Record<string, string> = {
   epic: "#bd67fa",
   legendary: "#ffc629",
   mythic: "#fa7bdf",
-  // 18 кастомных окрасов (по slug, по skin-XX и по номеру)
-  "wedding-white": "#f0f4f8", "skin-01": "#f0f4f8", "01": "#f0f4f8",
-  "sandy-cappuccino": "#c8ad8d", "skin-02": "#c8ad8d", "02": "#c8ad8d",
-  "obsidian-black": "#2d2b38", "skin-03": "#2d2b38", "03": "#2d2b38",
-  "peacock-emerald": "#00a877", "skin-04": "#00a877", "04": "#00a877",
-  "golden-gilded": "#ffd700", "skin-05": "#ffd700", "05": "#ffd700",
-  "cosmic-holographic": "#a084dc", "skin-06": "#a084dc", "06": "#a084dc",
-  "fire-lava": "#ff4500", "skin-07": "#ff4500", "07": "#ff4500",
-  "pink-flamingo": "#ff70a6", "skin-08": "#ff70a6", "08": "#ff70a6",
-  "cyberpunk-neon": "#00f0ff", "skin-09": "#00f0ff", "09": "#00f0ff",
-  "blue-frost-ice": "#a0e7e5", "skin-10": "#a0e7e5", "10": "#a0e7e5",
-  "spotted-leopard": "#e3a857", "skin-11": "#e3a857", "11": "#e3a857",
-  "iridescent-oil-slick": "#6c5ce7", "skin-12": "#6c5ce7", "12": "#6c5ce7",
-  "zebra-sketch": "#555555", "skin-13": "#555555", "13": "#555555",
-  "firework-neon-splash": "#ff007f", "skin-14": "#ff007f", "14": "#ff007f",
-  "pumpkin-orange": "#ff7518", "skin-15": "#ff7518", "15": "#ff7518",
-  "shimmering-ruby-quartz": "#c71585", "skin-16": "#c71585", "16": "#c71585",
-  "patchwork-plush": "#b5838d", "skin-17": "#b5838d", "17": "#b5838d",
-  "cherry-blossom": "#ffcccc", "skin-18": "#ffcccc", "18": "#ffcccc",
+  // 18 кастомных окрасов (точный цвет оперения головы для естественного тонирования век)
+  "wedding-white": "#b5adbb", "skin-01": "#b5adbb", "01": "#b5adbb",
+  "sandy-cappuccino": "#6e8fbf", "skin-02": "#6e8fbf", "02": "#6e8fbf",
+  "obsidian-black": "#65585e", "skin-03": "#65585e", "03": "#65585e",
+  "peacock-emerald": "#7c9043", "skin-04": "#7c9043", "04": "#7c9043",
+  "golden-gilded": "#588daf", "skin-05": "#588daf", "05": "#588daf",
+  "cosmic-holographic": "#895b67", "skin-06": "#895b67", "06": "#895b67",
+  "fire-lava": "#969497", "skin-07": "#969497", "07": "#969497",
+  "pink-flamingo": "#7f5759", "skin-08": "#7f5759", "08": "#7f5759",
+  "cyberpunk-neon": "#3a71c9", "skin-09": "#3a71c9", "09": "#3a71c9",
+  "blue-frost-ice": "#563da1", "skin-10": "#563da1", "10": "#563da1",
+  "spotted-leopard": "#9a8984", "skin-11": "#9a8984", "11": "#9a8984",
+  "iridescent-oil-slick": "#b1aad4", "skin-12": "#b1aad4", "12": "#b1aad4",
+  "zebra-sketch": "#454058", "skin-13": "#454058", "13": "#454058",
+  "firework-neon-splash": "#a496da", "skin-14": "#a496da", "14": "#a496da",
+  "pumpkin-orange": "#7a4d4f", "skin-15": "#7a4d4f", "15": "#7a4d4f",
+  "shimmering-ruby-quartz": "#c5b088", "skin-16": "#c5b088", "16": "#c5b088",
+  "patchwork-plush": "#537897", "skin-17": "#537897", "17": "#537897",
+  "cherry-blossom": "#6c5e64", "skin-18": "#6c5e64", "18": "#6c5e64",
 };
+
+const ASSET_V = "?v=3";
 
 export function resolveSkinSrc(skin?: string | null): string {
   if (!skin || skin === "common" || skin === "default") {
-    return "/assets/pigeon/body-base.webp";
+    return `/assets/pigeon/body-base.webp${ASSET_V}`;
   }
   const m = skin.match(/^skin-(\d+)/);
   if (m) {
     const num = String(parseInt(m[1], 10)).padStart(2, "0");
-    return `/assets/pigeon/skins/skin-${num}.webp`;
+    return `/assets/pigeon/skins/skin-${num}.webp${ASSET_V}`;
   }
   const num = parseInt(skin, 10);
   if (!isNaN(num) && num >= 1 && num <= 18) {
-    return `/assets/pigeon/skins/skin-${String(num).padStart(2, "0")}.webp`;
+    return `/assets/pigeon/skins/skin-${String(num).padStart(2, "0")}.webp${ASSET_V}`;
   }
   const slugIdx = CUSTOM_SKIN_SLUGS.indexOf(skin as any);
   if (slugIdx >= 0) {
-    return `/assets/pigeon/skins/skin-${String(slugIdx + 1).padStart(2, "0")}.webp`;
+    return `/assets/pigeon/skins/skin-${String(slugIdx + 1).padStart(2, "0")}.webp${ASSET_V}`;
   }
-  return "/assets/pigeon/body-base.webp";
+  return `/assets/pigeon/body-base.webp${ASSET_V}`;
 }
 
 export function resolveShoesSrc(shoes?: string | null): string | null {
@@ -166,9 +168,9 @@ export function resolveShoesSrc(shoes?: string | null): string | null {
   const clean = shoes.replace(/^shoes-/, "").trim();
   const num = parseInt(clean, 10);
   if (!isNaN(num) && num >= 1 && num <= 18) {
-    return `/assets/pigeon/shoes/shoes-${String(num).padStart(2, "0")}.webp`;
+    return `/assets/pigeon/shoes/shoes-${String(num).padStart(2, "0")}.webp${ASSET_V}`;
   }
-  return `/assets/pigeon/shoes/shoes-${clean}.webp`;
+  return `/assets/pigeon/shoes/shoes-${clean}.webp${ASSET_V}`;
 }
 
 export function resolveClothesSrc(clothes?: string | null): string | null {
@@ -176,9 +178,9 @@ export function resolveClothesSrc(clothes?: string | null): string | null {
   const clean = clothes.replace(/^clothes-/, "").replace(/^clothing-/, "").trim();
   const num = parseInt(clean, 10);
   if (!isNaN(num) && num >= 1 && num <= 18) {
-    return `/assets/pigeon/clothes/clothes-${String(num).padStart(2, "0")}.webp`;
+    return `/assets/pigeon/clothes/clothes-${String(num).padStart(2, "0")}.webp${ASSET_V}`;
   }
-  return `/assets/pigeon/clothes/clothes-${clean}.webp`;
+  return `/assets/pigeon/clothes/clothes-${clean}.webp${ASSET_V}`;
 }
 
 export function resolveHatSrc(hat?: string | null): string | null {
@@ -186,9 +188,9 @@ export function resolveHatSrc(hat?: string | null): string | null {
   const clean = hat.replace(/^hats-/, "").replace(/^hat-/, "").trim();
   const num = parseInt(clean, 10);
   if (!isNaN(num) && num >= 1 && num <= 18) {
-    return `/assets/pigeon/hats/hats-${String(num).padStart(2, "0")}.webp`;
+    return `/assets/pigeon/hats/hats-${String(num).padStart(2, "0")}.webp${ASSET_V}`;
   }
-  return `/assets/pigeon/hats/hats-${clean}.webp`;
+  return `/assets/pigeon/hats/hats-${clean}.webp${ASSET_V}`;
 }
 
 export function getPigeonSkinColor(
@@ -209,90 +211,90 @@ export const DEV_SKIN_OPTIONS = [
   { id: "epic", label: "Эпический (epic)" },
   { id: "legendary", label: "Легендарный (legendary)" },
   { id: "mythic", label: "Мифический (mythic)" },
-  { id: "skin-01", label: "01. Свадебный белый" },
+  { id: "skin-01", label: "01. Свадебный мрамор" },
   { id: "skin-02", label: "02. Песочный капучино" },
-  { id: "skin-03", label: "03. Обсидиановый чёрный" },
-  { id: "skin-04", label: "04. Павлиний изумруд" },
-  { id: "skin-05", label: "05. Золотое тиснение" },
-  { id: "skin-06", label: "06. Космический голографик" },
-  { id: "skin-07", label: "07. Огненная лава" },
-  { id: "skin-08", label: "08. Розовый фламинго" },
-  { id: "skin-09", label: "09. Киберпанк неон" },
-  { id: "skin-10", label: "10. Ледяной иней" },
-  { id: "skin-11", label: "11. Пятнистый леопард" },
-  { id: "skin-12", label: "12. Бензиновый перелив" },
-  { id: "skin-13", label: "13. Зебра скетч" },
-  { id: "skin-14", label: "14. Неоновый салют" },
-  { id: "skin-15", label: "15. Тыквенный оранжевый" },
-  { id: "skin-16", label: "16. Рубиновый кварц" },
-  { id: "skin-17", label: "17. Лоскутный плюш" },
-  { id: "skin-18", label: "18. Цветение сакуры" },
+  { id: "skin-03", label: "03. Тёмно-серый асфальт" },
+  { id: "skin-04", label: "04. Изумрудный павлин" },
+  { id: "skin-05", label: "05. Золотисто-бронзовый" },
+  { id: "skin-06", label: "06. Космический ультрамарин" },
+  { id: "skin-07", label: "07. Пепельно-серый монохром" },
+  { id: "skin-08", label: "08. Глубокий сливовый" },
+  { id: "skin-09", label: "09. Кибер-синий неон" },
+  { id: "skin-10", label: "10. Фиолетовый кварц" },
+  { id: "skin-11", label: "11. Дымчатый леопард" },
+  { id: "skin-12", label: "12. Нежно-розовая сакура" },
+  { id: "skin-13", label: "13. Ночной индиго" },
+  { id: "skin-14", label: "14. Неоновый сиреневый" },
+  { id: "skin-15", label: "15. Огненная лава" },
+  { id: "skin-16", label: "16. Солнечное золото" },
+  { id: "skin-17", label: "17. Морская волна" },
+  { id: "skin-18", label: "18. Чернильный обсидиан" },
 ] as const;
 
 export const DEV_SHOES_OPTIONS = [
   { id: "none", label: "Без обуви (none)" },
-  { id: "01", label: "01. Босые лапки (shoes-01)" },
-  { id: "02", label: "02. Вязаные носочки (shoes-02)" },
-  { id: "03", label: "03. Уличные кеды (shoes-03)" },
-  { id: "04", label: "04. Резиновые галоши (shoes-04)" },
-  { id: "05", label: "05. Спортивные кроссы (shoes-05)" },
-  { id: "06", label: "06. Жёлтые тимберы (shoes-06)" },
-  { id: "07", label: "07. Шлёпанцы с носками (shoes-07)" },
-  { id: "08", label: "08. Армейские берцы (shoes-08)" },
-  { id: "09", label: "09. Скейтерские вансы (shoes-09)" },
-  { id: "10", label: "10. Неоновые раннеры (shoes-10)" },
-  { id: "11", label: "11. Ретро-хайтопы (shoes-11)" },
-  { id: "12", label: "12. Лакированные туфли (shoes-12)" },
-  { id: "13", label: "13. Тактические сапоги (shoes-13)" },
-  { id: "14", label: "14. Светящиеся платформы (shoes-14)" },
-  { id: "15", label: "15. Гравитационные боты (shoes-15)" },
-  { id: "16", label: "16. Кибер-протекторы (shoes-16)" },
-  { id: "17", label: "17. Золотые сникерсы (shoes-17)" },
-  { id: "18", label: "18. Алмазные когти (shoes-18)" },
+  { id: "01", label: "01. Синие кроссовки с белой подошвой" },
+  { id: "02", label: "02. Серые спортивные раннеры" },
+  { id: "03", label: "03. Тёмно-серые кеды" },
+  { id: "04", label: "04. Чёрные тактические ботинки" },
+  { id: "05", label: "05. Тёмные хайтопы" },
+  { id: "06", label: "06. Пурпурные стильные сникерсы" },
+  { id: "07", label: "07. Оливково-зелёные кроссы" },
+  { id: "08", label: "08. Рыжие тимберленды" },
+  { id: "09", label: "09. Розово-пурпурные яркие кеды" },
+  { id: "10", label: "10. Салатовые раннеры" },
+  { id: "11", label: "11. Фиолетово-синие хайтопы" },
+  { id: "12", label: "12. Сине-фиолетовые кеды с пандой" },
+  { id: "13", label: "13. Коричневые кожаные ботинки" },
+  { id: "14", label: "14. Розовые кроссовки на платформе" },
+  { id: "15", label: "15. Чёрные низкие кеды" },
+  { id: "16", label: "16. Тёмно-коричневые сапоги" },
+  { id: "17", label: "17. Разноцветные ретро-сникерсы" },
+  { id: "18", label: "18. Тёмно-серые туфли" },
 ] as const;
 
 export const DEV_CLOTHES_OPTIONS = [
   { id: "none", label: "Без одежды (none)" },
-  { id: "01", label: "01. Худи оверсайз (01)" },
-  { id: "02", label: "02. Спортивный бомбер (02)" },
-  { id: "03", label: "03. Джинсовая куртка (03)" },
-  { id: "04", label: "04. Кожаная косуха (04)" },
-  { id: "05", label: "05. Вязаный свитер (05)" },
-  { id: "06", label: "06. Классический смокинг (06)" },
-  { id: "07", label: "07. Пляжная гавайка (07)" },
-  { id: "08", label: "08. Тактический жилет (08)" },
-  { id: "09", label: "09. Неоновый дождевик (09)" },
-  { id: "10", label: "10. Кимоно самурая (10)" },
-  { id: "11", label: "11. Зимний пуховик (11)" },
-  { id: "12", label: "12. Королевская мантия (12)" },
-  { id: "13", label: "13. Рокерская безрукавка (13)" },
-  { id: "14", label: "14. Кибер-бронежилет (14)" },
-  { id: "15", label: "15. Школьный пиджак (15)" },
-  { id: "16", label: "16. Спецовка рабочего (16)" },
-  { id: "17", label: "17. Золотой костюм (17)" },
-  { id: "18", label: "18. Космический скафандр (18)" },
+  { id: "01", label: "01. Жёлто-золотой пуховик-худи" },
+  { id: "02", label: "02. Чёрная кожаная куртка" },
+  { id: "03", label: "03. Жёлто-оранжевый бомбер" },
+  { id: "04", label: "04. Розовый плюшевый халат" },
+  { id: "05", label: "05. Синяя джинсовая куртка" },
+  { id: "06", label: "06. Бирюзово-синяя ветровка" },
+  { id: "07", label: "07. Тёмная стелс-толстовка" },
+  { id: "08", label: "08. Бежевый тренч" },
+  { id: "09", label: "09. Тёмный тактический жилет" },
+  { id: "10", label: "10. Коричневая куртка-авиатор" },
+  { id: "11", label: "11. Чёрный строгий смокинг" },
+  { id: "12", label: "12. Оливковый военный китель" },
+  { id: "13", label: "13. Бордовый вязаный свитер" },
+  { id: "14", label: "14. Песочно-рыжее пальто" },
+  { id: "15", label: "15. Изумрудно-зелёная парка" },
+  { id: "16", label: "16. Стёганый жилет The North Face" },
+  { id: "17", label: "17. Тёмно-фиолетовый пиджак" },
+  { id: "18", label: "18. Красный университетский бомбер" },
 ] as const;
 
 export const DEV_HAT_OPTIONS = [
   { id: "none", label: "Без шапки (none)" },
-  { id: "01", label: "01. Панама хаки (01)" },
-  { id: "02", label: "02. Бейсболка козырьком назад (02)" },
-  { id: "03", label: "03. Вязаная бини (03)" },
-  { id: "04", label: "04. Королевская корона (04)" },
-  { id: "05", label: "05. Наушники диджея (05)" },
-  { id: "06", label: "06. Цилиндр джентльмена (06)" },
-  { id: "07", label: "07. Соломенное сомбреро (07)" },
-  { id: "08", label: "08. Военный берет (08)" },
-  { id: "09", label: "09. Кибер-визор (09)" },
-  { id: "10", label: "10. Шлем викинга (10)" },
-  { id: "11", label: "11. Шапка-ушанка (11)" },
-  { id: "12", label: "12. Колпак мага (12)" },
-  { id: "13", label: "13. Ободок с рожками (13)" },
-  { id: "14", label: "14. Бандана пирата (14)" },
-  { id: "15", label: "15. Поварской колпак (15)" },
-  { id: "16", label: "16. Защитная каска (16)" },
-  { id: "17", label: "17. Золотой лавровый венок (17)" },
-  { id: "18", label: "18. Космический шлем (18)" },
+  { id: "01", label: "01. Тёмная бейсболка" },
+  { id: "02", label: "02. Золотая корона" },
+  { id: "03", label: "03. Песочная панама сафари" },
+  { id: "04", label: "04. Серая вязаная шапка-бини" },
+  { id: "05", label: "05. Пурпурная шапка с помпоном" },
+  { id: "06", label: "06. Розовая панама" },
+  { id: "07", label: "07. Тёмно-синий берет" },
+  { id: "08", label: "08. Оранжевая бандана" },
+  { id: "09", label: "09. Розовый козырёк" },
+  { id: "10", label: "10. Капитанская фуражка" },
+  { id: "11", label: "11. Фиолетовый колпак" },
+  { id: "12", label: "12. Красная спортивная кепка" },
+  { id: "13", label: "13. Армейская пилотка" },
+  { id: "14", label: "14. Светлая ковбойская шляпа" },
+  { id: "15", label: "15. Охотничья шапка-ушанка" },
+  { id: "16", label: "16. Оливковая армейская каска" },
+  { id: "17", label: "17. Красный спортивный шлем" },
+  { id: "18", label: "18. Тёмный котелок" },
 ] as const;
 
 const DEV_EYE_OPTIONS = [
@@ -427,6 +429,7 @@ function Pigeon({
           >
             {/* Базовое тело (z-index: 10, с поддержкой 18 окрасов) */}
             <img
+              key={skinTrait || "base"}
               src={resolveSkinSrc(skinTrait)}
               alt="Базовое тело голубя"
               className="pigeon-layer layer-base"
@@ -443,6 +446,7 @@ function Pigeon({
             {/* Слой шеи (z-index: 15, для common не выводится) */}
             {raritySlug !== "common" && (
               <img
+                key={raritySlug}
                 src={`/assets/pigeon/neck-${raritySlug}.webp`}
                 alt={`Шея: ${rarity[rarityIndex]}`}
                 className="pigeon-layer layer-neck"
@@ -453,6 +457,7 @@ function Pigeon({
             {/* Слой обуви (z-index: 20, 18 вариантов) */}
             {resolveShoesSrc(shoesTrait) && (
               <img
+                key={shoesTrait || "shoes"}
                 src={resolveShoesSrc(shoesTrait)!}
                 alt={`Обувь: ${shoesTrait}`}
                 className="pigeon-layer layer-shoes"
@@ -471,6 +476,7 @@ function Pigeon({
             {/* Слой одежды (z-index: 30, 18 вариантов) */}
             {resolveClothesSrc(clothingTrait) && (
               <img
+                key={clothingTrait || "clothing"}
                 src={resolveClothesSrc(clothingTrait)!}
                 alt={`Одежда: ${clothingTrait}`}
                 className="pigeon-layer layer-clothing"
@@ -489,6 +495,7 @@ function Pigeon({
             {/* Слой век и эмоций (z-index: 40, динамическое тонирование кодом под окрас) */}
             {resolvedEye !== "grumpy" && (
               <img
+                key={`eyelids-${resolvedEye}-${skinTrait || raritySlug}`}
                 src={`/assets/pigeon/eyelids-${resolvedEye}.webp`}
                 alt={`Веки: ${resolvedEye}`}
                 className="pigeon-layer layer-eyelids"
@@ -505,6 +512,7 @@ function Pigeon({
             {/* Слой зрачков и белков глаз (z-index: 50, чистые белки без тонирования) */}
             {resolvedEye !== "grumpy" && (
               <img
+                key={`eyes-${resolvedEye}`}
                 src={`/assets/pigeon/eyes_${resolvedEye}.webp`}
                 alt={`Взгляд: ${resolvedEye}`}
                 className="pigeon-layer layer-eyes"
@@ -522,6 +530,7 @@ function Pigeon({
             {/* Слой головного убора (z-index: 60, 18 вариантов) */}
             {resolveHatSrc(hatTrait) && (
               <img
+                key={hatTrait || "hat"}
                 src={resolveHatSrc(hatTrait)!}
                 alt={`Головной убор: ${hatTrait}`}
                 className="pigeon-layer layer-hat"

@@ -299,7 +299,7 @@ def extract_eyelids_and_pupils(eyes_img: Image.Image) -> tuple[Image.Image, Imag
 def save_webp(img: Image.Image, out_path: Path):
     """
     Ресайзит до целевого размера 512x512 с высококачественным фильтром LANCZOS и сохраняет в WebP.
-    Гарантирует 100% чистый альфа-канал и отсечение любых паразитных белых пикселей фона.
+    Гарантирует 100% чистый альфа-канал и отсечение любых паразитных пикселей шума.
     """
     resized = img.resize(TARGET_SIZE, Image.Resampling.LANCZOS)
     arr = np.array(resized)
@@ -307,19 +307,21 @@ def save_webp(img: Image.Image, out_path: Path):
     # Очистка ультра-слабых субпикселей шума
     arr[arr[:, :, 3] < 15, 3] = 0
 
-    # На уровне пола (нижние 20% изображения) отсекаем любые остаточные светлые нейтральные пиксели стола
-    is_bottom = np.arange(TARGET_SIZE[1])[:, None] > 410
-    means = arr[:, :, :3].mean(axis=-1)
-    diffs = arr[:, :, :3].max(axis=-1) - arr[:, :, :3].min(axis=-1)
-    bottom_table_reflection = is_bottom & (means > 140) & (diffs < 35)
-    arr[bottom_table_reflection, 3] = 0
-
     # Обнуляем RGB для прозрачных пикселей, чтобы WebP не интерполировал цвет фона
     arr[arr[:, :, 3] == 0, :3] = 0
 
     clean_img = Image.fromarray(arr, "RGBA")
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    clean_img.save(out_path, "WEBP", quality=95, method=4)
+    str_path = str(out_path)
+    for attempt in range(5):
+        try:
+            clean_img.save(str_path, "WEBP", quality=95, method=4)
+            break
+        except Exception:
+            if attempt == 4:
+                raise
+            import time
+            time.sleep(0.15)
 
 
 def build_skins_assets(bb_mask: np.ndarray):
@@ -410,6 +412,10 @@ def build_skins_assets(bb_mask: np.ndarray):
             save_webp(skin_img, out_file)
             # Также сохраняем дубликат прямо в OUT_DIR для обратной совместимости
             save_webp(skin_img, OUT_DIR / f"skin-{skin_idx:02d}.webp")
+            if ALT_OUT_DIR.exists():
+                (ALT_OUT_DIR / "skins").mkdir(parents=True, exist_ok=True)
+                save_webp(skin_img, ALT_OUT_DIR / "skins" / f"skin-{skin_idx:02d}.webp")
+                save_webp(skin_img, ALT_OUT_DIR / f"skin-{skin_idx:02d}.webp")
             print(f"  ✓ Скин #{skin_idx:02d}: сохранён в {out_file.name} (512x512, пикселей: {int(np.sum(final_alpha > 20))})")
             skin_idx += 1
 
@@ -482,43 +488,41 @@ def build_shoes_assets(bb_arr: np.ndarray, base_512: np.ndarray):
             sx2, sy2 = sx1 + (x2 - x1), sy1 + (y2 - y1)
             aligned[y1:y2, x1:x2] = c_scaled[sy1:sy2, sx1:sx2]
 
-            # Выделение зоны обуви с полной подошвой и воротником
+            # Выделение зоны обуви с полной подошвой и воротником без дыр
             y_grid, x_grid = np.indices((512, 512))
             bright = np.mean(aligned, axis=2)
             diff_wb = np.max(aligned, axis=2) - np.min(aligned, axis=2)
 
-            is_pure_white = (bright > 245) & (diff_wb < 15)
-            # Тень пола (строго под подошвой, нейтральный серый градиент)
-            is_floor = (y_grid > 475) & (diff_wb <= 8) & (bright > 185)
-
-            # Вычитание перьев тела голубя выше зоны обуви
             diff_base = np.max(np.abs(aligned.astype(int) - base_512.astype(int)), axis=2)
-            is_pigeon_body = (y_grid < 420) & (diff_base < 35) & ((y_grid < 405) | (diff_base < 25))
-            is_above = (y_grid < 395)
-            is_outside_x = (x_grid < 145) | (x_grid > 405)
-            is_deep_floor = (y_grid > 508)
+            is_base_claw = (y_grid > 410) & (base_512[:, :, 0] > 100) & (base_512[:, :, 0] - base_512[:, :, 2] > 20)
 
-            raw_shoe_mask = ~is_pure_white & ~is_floor & ~is_pigeon_body & ~is_above & ~is_outside_x & ~is_deep_floor
-            # Заполняем внутренние дыры, чтобы белые подошвы и шнурки не пропадали
-            raw_shoe_mask = fill_mask_holes(raw_shoe_mask)
+            is_shoe_cand = (diff_base > 20) | is_base_claw
+            is_shoe_region = (y_grid >= 385) & (y_grid <= 508) & (x_grid >= 150) & (x_grid <= 415)
 
-            num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(raw_shoe_mask.astype(np.uint8))
-            shoe_mask = np.zeros_like(raw_shoe_mask)
+            is_bg = (bright > 248) & (diff_wb < 12)
+            is_floor = (y_grid > 480) & (diff_wb <= 8) & (bright > 185) & (bright <= 248)
+
+            raw_shoe = is_shoe_region & is_shoe_cand & ~is_bg & ~is_floor
+
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+            closed = cv2.morphologyEx(raw_shoe.astype(np.uint8), cv2.MORPH_CLOSE, kernel)
+            solid = fill_mask_holes(closed > 0)
+
+            num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(solid.astype(np.uint8))
+            clean_shoe = np.zeros_like(solid)
             for lbl in range(1, num_labels):
-                area = stats[lbl, cv2.CC_STAT_AREA]
-                cy = centroids[lbl][1]
-                if area > 120 and 395 <= cy <= 508:
-                    shoe_mask[labels == lbl] = True
+                if stats[lbl, cv2.CC_STAT_AREA] > 300:
+                    clean_shoe[labels == lbl] = True
 
-            alpha = (shoe_mask.astype(np.float32) * 255.0)
+            alpha = (clean_shoe.astype(np.float32) * 255.0)
             alpha = cv2.GaussianBlur(alpha, (3, 3), 0.5)
             alpha[alpha < 25] = 0
 
             # Де-фринжинг краёв обуви
-            inpaint_mask = ((alpha > 0) & (alpha <= 200)).astype(np.uint8) * 255
+            edge = (alpha > 0) & (alpha <= 200)
+            inpaint_mask = edge.astype(np.uint8) * 255
             inpainted = cv2.inpaint(aligned, inpaint_mask, 3, cv2.INPAINT_TELEA)
 
-            edge = (alpha > 0) & (alpha <= 200)
             final_rgb = aligned.copy()
             final_rgb[edge] = inpainted[edge]
 
@@ -531,6 +535,10 @@ def build_shoes_assets(bb_arr: np.ndarray, base_512: np.ndarray):
             out_file = out_shoes_dir / f"shoes-{shoe_idx:02d}.webp"
             save_webp(shoe_img, out_file)
             save_webp(shoe_img, OUT_DIR / f"shoes-{shoe_idx:02d}.webp")
+            if ALT_OUT_DIR.exists():
+                (ALT_OUT_DIR / "shoes").mkdir(parents=True, exist_ok=True)
+                save_webp(shoe_img, ALT_OUT_DIR / "shoes" / f"shoes-{shoe_idx:02d}.webp")
+                save_webp(shoe_img, ALT_OUT_DIR / f"shoes-{shoe_idx:02d}.webp")
             print(f"  ✓ Обувь #{shoe_idx:02d}: сохранена в {out_file.name} (512x512, пикселей: {int(np.sum(final_alpha > 20))})")
             shoe_idx += 1
 
@@ -598,31 +606,40 @@ def build_clothes_assets(base_512: np.ndarray):
 
             bright = np.mean(aligned, axis=2)
             diff_wb = np.max(aligned, axis=2) - np.min(aligned, axis=2)
-            is_pure_white = (bright > 245) & (diff_wb < 15)
+
+            # Внешний белый фон через floodFill из углов (не вырезает белые принты/худи внутри одежды)
+            is_white_cand = (bright > 238) & (diff_wb < 18)
+            inv = is_white_cand.astype(np.uint8) * 255
+            flood = np.zeros((514, 514), dtype=np.uint8)
+            for pt in [(0, 0), (511, 0), (0, 511), (511, 511)]:
+                cv2.floodFill(inv, flood, pt, 0)
+            is_exterior_bg = (inv == 0) & is_white_cand
 
             y_grid, x_grid = np.indices((512, 512))
-            # Зона одежды: торс, шея, плечи и крылья
-            is_clothes_zone = (y_grid >= 195) & (y_grid <= 462) & (x_grid >= 85) & (x_grid <= 430)
-            is_orange_feet = (y_grid > 415) & (aligned[:,:,2] > 170) & (aligned[:,:,1] > 60) & (aligned[:,:,0] < 60)
-            is_floor = (y_grid > 460) & (diff_wb <= 10) & (bright > 180)
+            is_head = (y_grid < 178) & (x_grid >= 210) & (x_grid <= 360)
+            is_floor = (y_grid >= 468) & (diff_wb <= 10) & (bright > 180)
+            is_cloth_zone = (y_grid >= 170) & (y_grid <= 472) & (x_grid >= 60) & (x_grid <= 430)
+            is_orange_claw = (y_grid > 415) & (aligned[:, :, 2] > 160) & (aligned[:, :, 1] > 60) & (aligned[:, :, 0] < 70)
 
-            clothes_mask = is_clothes_zone & ~is_pure_white & ~is_orange_feet & ~is_floor
-            clothes_mask = fill_mask_holes(clothes_mask)
+            cloth_cand = is_cloth_zone & ~is_exterior_bg & ~is_head & ~is_floor & ~is_orange_claw
 
-            num_l, labels, stats, centroids = cv2.connectedComponentsWithStats(clothes_mask.astype(np.uint8))
-            clean_clothes = np.zeros_like(clothes_mask)
+            # Заполнение внутренних отверстий
+            cloth_mask = fill_mask_holes(cloth_cand)
+
+            num_l, labels, stats, centroids = cv2.connectedComponentsWithStats(cloth_mask.astype(np.uint8))
+            clean_clothes = np.zeros_like(cloth_mask)
             for lbl in range(1, num_l):
-                if stats[lbl, cv2.CC_STAT_AREA] > 400:
+                if stats[lbl, cv2.CC_STAT_AREA] > 800:
                     clean_clothes[labels == lbl] = True
 
             alpha = (clean_clothes.astype(np.float32) * 255.0)
             alpha = cv2.GaussianBlur(alpha, (3, 3), 0.5)
             alpha[alpha < 25] = 0
 
-            inpaint_mask = ((alpha > 0) & (alpha <= 200)).astype(np.uint8) * 255
+            edge = (alpha > 0) & (alpha <= 200)
+            inpaint_mask = edge.astype(np.uint8) * 255
             inpainted = cv2.inpaint(aligned, inpaint_mask, 3, cv2.INPAINT_TELEA)
 
-            edge = (alpha > 0) & (alpha <= 200)
             final_rgb = aligned.copy()
             final_rgb[edge] = inpainted[edge]
 
@@ -635,6 +652,10 @@ def build_clothes_assets(base_512: np.ndarray):
             out_file = out_clothes_dir / f"clothes-{cloth_idx:02d}.webp"
             save_webp(cloth_img, out_file)
             save_webp(cloth_img, OUT_DIR / f"clothes-{cloth_idx:02d}.webp")
+            if ALT_OUT_DIR.exists():
+                (ALT_OUT_DIR / "clothes").mkdir(parents=True, exist_ok=True)
+                save_webp(cloth_img, ALT_OUT_DIR / "clothes" / f"clothes-{cloth_idx:02d}.webp")
+                save_webp(cloth_img, ALT_OUT_DIR / f"clothes-{cloth_idx:02d}.webp")
             print(f"  ✓ Одежда #{cloth_idx:02d}: сохранена в {out_file.name} (512x512, пикселей: {int(np.sum(final_alpha > 20))})")
             cloth_idx += 1
 
@@ -644,8 +665,9 @@ def build_hats_assets(base_512: np.ndarray):
     Автоматически нарезает листы hats (hats1.png, hats2.png, hats3.png) в сетке 2x3
     на 18 отдельных головных уборов (512x512):
     - выравнивает кадр по лицу базового голубя;
-    - изолирует головной убор на макушке (y < 210);
-    - убирает белый фон и тело голубя;
+    - изолирует головной убор на макушке (y <= 165);
+    - строго отсекает лицо/глаза/клюв (y >= 135 и x в [225, 360]), предотвращая захват лица зебры или скина;
+    - убирает белый фон и тело базового голубя;
     - сохраняет в public/assets/pigeon/hats/hats-01.webp … hats-18.webp.
     """
     hats_dir = RAW_DIR / "hats"
@@ -704,29 +726,30 @@ def build_hats_assets(base_512: np.ndarray):
             is_pure_white = (bright > 245) & (diff_wb < 15)
 
             y_grid, x_grid = np.indices((512, 512))
-            is_hat_zone = (y_grid < 210) & (x_grid >= 130) & (x_grid <= 420)
-            is_below = (y_grid >= 210)
+            # Строгое отсечение лица/глаз/клюва:
+            is_face = (y_grid >= 135) & (x_grid >= 225) & (x_grid <= 360)
+            is_hat_zone = (y_grid <= 165) & (x_grid >= 120) & (x_grid <= 420) & ~is_face
 
             diff_base = np.max(np.abs(aligned.astype(int) - base_512.astype(int)), axis=2)
-            is_base = (diff_base < 30) & (y_grid >= 140)
+            is_base = (diff_base < 30) & (y_grid >= 115)
 
-            hat_mask = is_hat_zone & ~is_pure_white & ~is_base & ~is_below
+            hat_mask = is_hat_zone & ~is_pure_white & ~is_base
             hat_mask = fill_mask_holes(hat_mask)
 
             num_l, labels, stats, centroids = cv2.connectedComponentsWithStats(hat_mask.astype(np.uint8))
             clean_hat = np.zeros_like(hat_mask)
             for lbl in range(1, num_l):
-                if stats[lbl, cv2.CC_STAT_AREA] > 200:
+                if stats[lbl, cv2.CC_STAT_AREA] > 150:
                     clean_hat[labels == lbl] = True
 
             alpha = (clean_hat.astype(np.float32) * 255.0)
             alpha = cv2.GaussianBlur(alpha, (3, 3), 0.5)
             alpha[alpha < 25] = 0
 
-            inpaint_mask = ((alpha > 0) & (alpha <= 200)).astype(np.uint8) * 255
+            edge = (alpha > 0) & (alpha <= 200)
+            inpaint_mask = edge.astype(np.uint8) * 255
             inpainted = cv2.inpaint(aligned, inpaint_mask, 3, cv2.INPAINT_TELEA)
 
-            edge = (alpha > 0) & (alpha <= 200)
             final_rgb = aligned.copy()
             final_rgb[edge] = inpainted[edge]
 
@@ -739,6 +762,10 @@ def build_hats_assets(base_512: np.ndarray):
             out_file = out_hats_dir / f"hats-{hat_idx:02d}.webp"
             save_webp(hat_img, out_file)
             save_webp(hat_img, OUT_DIR / f"hats-{hat_idx:02d}.webp")
+            if ALT_OUT_DIR.exists():
+                (ALT_OUT_DIR / "hats").mkdir(parents=True, exist_ok=True)
+                save_webp(hat_img, ALT_OUT_DIR / "hats" / f"hats-{hat_idx:02d}.webp")
+                save_webp(hat_img, ALT_OUT_DIR / f"hats-{hat_idx:02d}.webp")
             print(f"  ✓ Шапка #{hat_idx:02d}: сохранена в {out_file.name} (512x512, пикселей: {int(np.sum(final_alpha > 20))})")
             hat_idx += 1
 
