@@ -57,34 +57,44 @@ EYES_MAPPING = {
 
 def extract_base_body(base_img: Image.Image) -> tuple[Image.Image, np.ndarray]:
     """
-    Удаляет внешний белый фон у base.jpg с де-фринжингом (устранением белого ореола)
-    и мягким сглаживанием краёв. Возвращает RGBA изображение и булеву маску внешнего фона.
+    Удаляет внешний белый фон и остаточную наземную тень у base.jpg с де-фринжингом
+    (устранением белого ореола) и мягким сглаживанием краёв без подрезки пальцев/когтей.
+    Возвращает RGBA изображение и булеву маску внешнего фона.
     """
     rgb = base_img.convert("RGB")
     arr = np.array(rgb, dtype=np.float32)
 
-    # Кандидаты на белый фон: евклидово расстояние от белого (255, 255, 255) < 32
     dist_from_white = np.sqrt(np.sum((255.0 - arr) ** 2, axis=-1))
-    is_white_candidate = (dist_from_white < 32).astype(np.uint8) * 255
+    channel_diff = arr.max(axis=-1) - arr.min(axis=-1)
+    bright = arr.mean(axis=-1)
 
-    # Заливка из 4 углов, чтобы найти внешний фон и не трогать белые элементы внутри
-    bg_img = Image.fromarray(is_white_candidate).copy()
+    # Кандидаты на внешний фон:
+    # 1. По всему кадру: пиксели близкие к чистому белому (dist < 38)
+    # 2. В нижней зоне (y > 1750): нейтральная светло-серая тень под ногами
+    #    (bright > 155, channel_diff < 30), не затрагивая тёмные/насыщенные когти и обувь
+    is_bg_candidate = (dist_from_white < 38)
+    bottom_shadow = (np.arange(arr.shape[0])[:, None] > 1750) & (bright > 155) & (channel_diff < 30)
+    is_bg_candidate = is_bg_candidate | bottom_shadow
+
+    # Заливка из 4 углов, чтобы найти внешний фон и не трогать белые элементы внутри подошв
+    bg_img = Image.fromarray((is_bg_candidate.astype(np.uint8) * 255)).copy()
     for seed in [(0, 0), (0, bg_img.height - 1), (bg_img.width - 1, 0), (bg_img.width - 1, bg_img.height - 1)]:
         ImageDraw.floodfill(bg_img, seed, 128)
 
     outer_bg = (np.array(bg_img) == 128)
-    fg_mask = (~outer_bg).astype(np.uint8) * 255
+    fg_mask = Image.fromarray(((~outer_bg).astype(np.uint8) * 255))
 
-    # Сглаживание краёв маски
-    smooth_mask = Image.fromarray(fg_mask).filter(ImageFilter.GaussianBlur(1.2))
+    # Микро-эрозия (MinFilter 3) отсекает краевой 1-пиксельный JPEG-шум белого фона,
+    # затем GaussianBlur(1.0) даёт плавный субпиксельный антиалиасинг
+    smooth_mask = fg_mask.filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(1.0))
     alpha = np.array(smooth_mask, dtype=np.float32) / 255.0
+    alpha[alpha < 0.03] = 0.0
 
-    # Де-фринжинг: восстанавливаем истинный цвет контура без подмешанного белого фона
+    # Математический де-фринжинг: восстанавливаем истинный цвет контура без подмешанного белого фона
     # C_obs = alpha * C_fg + (1 - alpha) * 255  ==>  C_fg = (C_obs - 255 * (1 - alpha)) / alpha
-    fg_rgb = np.zeros_like(arr)
-    for c in range(3):
-        unblended = (arr[:, :, c] - 255.0 * (1.0 - alpha)) / np.maximum(alpha, 1e-4)
-        fg_rgb[:, :, c] = np.clip(unblended, 0.0, 255.0)
+    alpha_3d = np.maximum(alpha[:, :, None], 0.05)
+    fg_rgb = (arr - 255.0 * (1.0 - alpha[:, :, None])) / alpha_3d
+    fg_rgb = np.clip(fg_rgb, 0.0, 255.0)
 
     rgba = np.dstack([fg_rgb.astype(np.uint8), (alpha * 255.0).astype(np.uint8)])
     base_rgba = Image.fromarray(rgba, "RGBA")

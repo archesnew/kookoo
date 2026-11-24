@@ -85,6 +85,19 @@ const EYE_TRAIT_MAP: Record<string, string> = {
   "10": "crazy",
 };
 
+const DEV_EYE_OPTIONS = [
+  { id: "grumpy", label: "Базовый (grumpy)" },
+  { id: "sparkle", label: "Сияющий (sparkle)" },
+  { id: "crazy", label: "Безумный (crazy)" },
+  { id: "cyber", label: "Кибер (cyber)" },
+  { id: "boss", label: "Босс (boss)" },
+  { id: "sleepy", label: "Сонный (sleepy)" },
+  { id: "anime", label: "Аниме (anime)" },
+  { id: "berserk", label: "Берсерк (berserk)" },
+  { id: "rich", label: "Богатый (rich)" },
+  { id: "reaper", label: "Жнец (reaper)" },
+] as const;
+
 function Pigeon({
   rarityIndex,
   feedEffect,
@@ -387,6 +400,8 @@ export default function App() {
   const [counter, setCounter] = useState(Date.now());
   const [confirm, setConfirm] = useState<number | null>(null);
   const [splash, setSplash] = useState(true);
+  const [previewRarity, setPreviewRarity] = useState<number | null>(null);
+  const [previewEyes, setPreviewEyes] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setCounter(Date.now()), 1000);
@@ -407,6 +422,8 @@ export default function App() {
     s.birds.find((b) => b.id === s.activeBirdId) ?? s.birds[s.birdIndex];
   const rarityIndex = bird?.rarity ?? s.rarity;
   const eyeTrait = bird?.traits?.eyes || "grumpy";
+  const activeRarity = previewRarity ?? rarityIndex;
+  const activeEyes = previewEyes ?? eyeTrait;
   const feeds = bird?.cycleFeeds ?? s.cycleFeeds;
   const startedAt = bird?.cycleStartedAt ?? s.cycleStartedAt;
   const expired =
@@ -485,10 +502,10 @@ export default function App() {
             <div className="rank">
               <span
                 style={
-                  { "--rarity": colors[rarityIndex] } as React.CSSProperties
+                  { "--rarity": colors[activeRarity] } as React.CSSProperties
                 }
               />
-              {rarity[rarityIndex]}
+              {rarity[activeRarity]}
             </div>
             <div className="bird-title">
               <div>
@@ -518,9 +535,9 @@ export default function App() {
           </div>
 
           <Pigeon
-            rarityIndex={rarityIndex}
+            rarityIndex={activeRarity}
             feedEffect={s.feedEffect}
-            eyeTrait={eyeTrait}
+            eyeTrait={activeEyes}
           />
 
           <div className="bird-meters">
@@ -548,6 +565,54 @@ export default function App() {
               />
             </div>
           </div>
+
+          {import.meta.env.DEV && (
+            <div className="dev-preview-panel">
+              <div className="dev-preview-header">
+                <small>🛠 DEV ПРЕВЬЮ СЛОЁВ ГОЛУБЯ</small>
+                {(previewRarity !== null || previewEyes !== null) && (
+                  <button
+                    type="button"
+                    className="dev-preview-reset"
+                    onClick={() => {
+                      setPreviewRarity(null);
+                      setPreviewEyes(null);
+                    }}
+                  >
+                    ↺ Сброс
+                  </button>
+                )}
+              </div>
+              <div className="dev-preview-controls">
+                <label>
+                  <span>Шея:</span>
+                  <select
+                    value={activeRarity}
+                    onChange={(e) => setPreviewRarity(Number(e.target.value))}
+                  >
+                    {RARITY_SLUGS.map((slug, idx) => (
+                      <option key={slug} value={idx}>
+                        {rarity[idx]} ({slug})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Взгляд:</span>
+                  <select
+                    value={activeEyes}
+                    onChange={(e) => setPreviewEyes(e.target.value)}
+                  >
+                    {DEV_EYE_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
+          )}
 
           <section className="action-card">
             <div className="feed-summary">

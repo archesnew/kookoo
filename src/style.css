@@ -421,6 +421,79 @@ button:disabled {
   background: linear-gradient(90deg, #f0ac26, #ffdf6f);
 }
 
+/* ─── Dev-only Preview Panel ─── */
+.dev-preview-panel {
+  width: 100%;
+  padding: 8px 10px;
+  background: rgba(23, 13, 36, 0.92);
+  border: 1px dashed rgba(255, 198, 41, 0.45);
+  border-radius: 12px;
+  margin: 4px 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  backdrop-filter: blur(8px);
+}
+
+.dev-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dev-preview-header small {
+  color: #ffc629;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+}
+
+.dev-preview-reset {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #f3effa;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.dev-preview-reset:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.dev-preview-controls {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.dev-preview-controls label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: #a89caf;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.dev-preview-controls select {
+  background: #100919;
+  color: #f3effa;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 11px;
+  outline: none;
+  cursor: pointer;
+}
+
+.dev-preview-controls select:focus {
+  border-color: #ffc629;
+}
+
 /* ─── Карточка действий ─── */
 .action-card {
   flex: none;
