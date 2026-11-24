@@ -1,0 +1,59 @@
+name: Daily Backup
+
+on:
+  schedule:
+    # Запуск каждый день в 03:00 UTC (06:00 MSK)
+    - cron: '0 3 * * *'
+  workflow_dispatch: # Возможность ручного запуска из интерфейса GitHub
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    name: Create Daily Backup Snapshot
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set backup date
+        id: meta
+        run: |
+          DATE=$(date +'%Y-%m-%d')
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+          echo "tag=backup-$DATE" >> $GITHUB_OUTPUT
+
+      - name: Create Daily Tag & Backup Branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          TAG_NAME="${{ steps.meta.outputs.tag }}"
+          echo "Creating and pushing tag: $TAG_NAME"
+          git tag -f "$TAG_NAME"
+          git push -f origin "$TAG_NAME"
+
+          echo "Updating rolling backup/daily branch"
+          git branch -f backup/daily HEAD
+          git push -f origin backup/daily
+
+      - name: Create Daily Backup Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${{ steps.meta.outputs.tag }}"
+          DATE="${{ steps.meta.outputs.date }}"
+          # Создаём или обновляем релиз через GitHub CLI
+          if gh release view "$TAG_NAME" > /dev/null 2>&1; then
+            echo "Release $TAG_NAME already exists, skipping creation."
+          else
+            gh release create "$TAG_NAME" \
+              --title "Ежедневный бэкап: $DATE" \
+              --notes "Автоматический ежедневный снимок репозитория KOO KOO за $DATE. Включает полный исходный код, ассеты персонажа, спецификации экономики и тесты." \
+              --prerelease
+          fi
