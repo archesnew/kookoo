@@ -84,6 +84,16 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  justify-content: center;
+}
+
+.brand-logo-img {
+  height: 24px;
+  width: auto;
+  max-width: 120px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(155, 54, 245, 0.4));
+  user-select: none;
 }
 
 .logo {
@@ -117,6 +127,14 @@ button:disabled {
 
 .balance b {
   font-weight: 800;
+}
+
+.balance-seed-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  flex: none;
+  filter: drop-shadow(0 0 6px rgba(255, 198, 41, 0.65));
 }
 
 .seed-icon {
@@ -1069,7 +1087,144 @@ button:disabled {
   font-size: 17px;
 }
 
-/* ─── Загрузочный экран ─── */
+/* ─── Загрузочный экран (Splash Overlay) ─── */
+.splash-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  background-color: #0b0512;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.45s ease-out;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.splash-overlay.fade-out {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.splash-backdrop {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+}
+
+.splash-poster-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 38%;
+  filter: brightness(0.96) contrast(1.04);
+}
+
+.splash-gradient-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 40%, transparent 40%, rgba(11, 5, 18, 0.82) 90%),
+              linear-gradient(to bottom, rgba(11, 5, 18, 0.35) 0%, transparent 25%, transparent 60%, #0b0512 95%);
+}
+
+.splash-content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 420px;
+  padding: 0 24px calc(36px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.splash-loading-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.splash-spinner-ring {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+  animation: spinner-rotate 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.spinner-track {
+  stroke: rgba(155, 54, 245, 0.22);
+}
+
+.spinner-arc {
+  stroke: #c084fc;
+  stroke-dasharray: 126;
+  stroke-dashoffset: 75;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 8px rgba(192, 132, 252, 0.85));
+}
+
+.spinner-center-seed {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(255, 198, 41, 0.85));
+  animation: seed-pulse 1.6s ease-in-out infinite;
+}
+
+.splash-status-text {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #dfd1eb;
+  text-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+}
+
+.splash-skip-tip {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: #8b799e;
+  opacity: 0.75;
+}
+
+@keyframes spinner-rotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes seed-pulse {
+  0%, 100% {
+    transform: scale(0.92);
+    filter: drop-shadow(0 0 6px rgba(255, 198, 41, 0.6));
+  }
+  50% {
+    transform: scale(1.12);
+    filter: drop-shadow(0 0 12px rgba(255, 215, 0, 1));
+  }
+}
+
 .splash {
   height: 100dvh;
   display: flex;

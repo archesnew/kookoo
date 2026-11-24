@@ -416,15 +416,29 @@ export default function App() {
   const [counter, setCounter] = useState(Date.now());
   const [confirm, setConfirm] = useState<number | null>(null);
   const [splash, setSplash] = useState(true);
+  const [splashFading, setSplashFading] = useState(false);
   const [previewRarity, setPreviewRarity] = useState<number | null>(null);
   const [previewEyes, setPreviewEyes] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setCounter(Date.now()), 1000);
-    const done = setTimeout(() => setSplash(false), 1100);
+
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (prefersReducedMotion) {
+      setSplash(false);
+      return () => clearInterval(t);
+    }
+
+    const fadeTimer = setTimeout(() => setSplashFading(true), 1300);
+    const closeTimer = setTimeout(() => setSplash(false), 1750);
+
     return () => {
       clearInterval(t);
-      clearTimeout(done);
+      clearTimeout(fadeTimer);
+      clearTimeout(closeTimer);
     };
   }, []);
 
@@ -497,27 +511,82 @@ export default function App() {
     s.select(egg.id);
   };
 
-  if (splash)
-    return (
-      <main className="splash">
-        <div className="splash-wordmark">
-          KOO <span>KOO</span>
-        </div>
-        <small>FEED · BREED · COLLECT</small>
-      </main>
-    );
-
   return (
     <main className="app">
+      {splash && (
+        <aside
+          className={`splash-overlay ${splashFading ? "fade-out" : ""}`}
+          role="status"
+          aria-live="polite"
+          aria-label="Загрузка KOO KOO"
+          onClick={() => setSplash(false)}
+        >
+          <div className="splash-backdrop">
+            <img
+              src="/assets/brand/splash-poster.webp"
+              alt="KOO KOO Загрузка"
+              className="splash-poster-img"
+            />
+            <div className="splash-gradient-vignette" />
+          </div>
+
+          <div className="splash-content">
+            <div className="splash-loading-group">
+              <div className="splash-spinner-ring">
+                <svg className="spinner-svg" viewBox="0 0 80 80" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="spinner-grad" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#d693ff" />
+                      <stop offset="50%" stopColor="#9b36f5" />
+                      <stop offset="100%" stopColor="#ffc629" />
+                    </linearGradient>
+                  </defs>
+                  <circle
+                    className="spinner-track"
+                    cx="40"
+                    cy="40"
+                    r="34"
+                    fill="none"
+                    strokeWidth="4"
+                  />
+                  <circle
+                    className="spinner-arc"
+                    cx="40"
+                    cy="40"
+                    r="34"
+                    fill="none"
+                    strokeWidth="4"
+                    stroke="url(#spinner-grad)"
+                  />
+                </svg>
+                <img
+                  src="/assets/brand/seed-icon.webp"
+                  alt=""
+                  className="spinner-center-seed"
+                  aria-hidden="true"
+                />
+              </div>
+              <span className="splash-status-text">Загрузка стаи...</span>
+            </div>
+          </div>
+        </aside>
+      )}
+
       <header className="topbar">
         <div className="brand">
-          <div className="logo">
-            K<span>OO</span>
-          </div>
-          <small>FEED. BREED. COLLECT.</small>
+          <img
+            src="/assets/brand/logo-koo-koo.webp"
+            alt="KOO KOO"
+            className="brand-logo-img"
+          />
         </div>
         <div className="balance">
-          <SeedIcon />
+          <img
+            src="/assets/brand/seed-icon.webp"
+            alt=""
+            className="balance-seed-icon"
+            aria-hidden="true"
+          />
           <b>{s.seeds.toLocaleString("ru-RU")}</b>
         </div>
       </header>
