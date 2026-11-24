@@ -91,6 +91,27 @@ const EYE_TRAIT_MAP: Record<string, string> = {
   "10": "crazy",
 };
 
+export const CUSTOM_SKIN_SLUGS = [
+  "wedding-white",
+  "sandy-cappuccino",
+  "obsidian-black",
+  "peacock-emerald",
+  "golden-gilded",
+  "cosmic-holographic",
+  "fire-lava",
+  "pink-flamingo",
+  "cyberpunk-neon",
+  "blue-frost-ice",
+  "spotted-leopard",
+  "iridescent-oil-slick",
+  "zebra-sketch",
+  "firework-neon-splash",
+  "pumpkin-orange",
+  "shimmering-ruby-quartz",
+  "patchwork-plush",
+  "cherry-blossom",
+] as const;
+
 export const PIGEON_SKIN_COLORS: Record<string, string> = {
   // Базовые по 6 редкостям
   common: "#93a2b4",
@@ -99,26 +120,56 @@ export const PIGEON_SKIN_COLORS: Record<string, string> = {
   epic: "#bd67fa",
   legendary: "#ffc629",
   mythic: "#fa7bdf",
-  // 18 кастомных окрасов
-  "wedding-white": "#f0f4f8",
-  "sandy-cappuccino": "#c8ad8d",
-  "obsidian-black": "#2d2b38",
-  "peacock-emerald": "#00a877",
-  "golden-gilded": "#ffd700",
-  "cosmic-holographic": "#a084dc",
-  "fire-lava": "#ff4500",
-  "pink-flamingo": "#ff70a6",
-  "cyberpunk-neon": "#00f0ff",
-  "blue-frost-ice": "#a0e7e5",
-  "spotted-leopard": "#e3a857",
-  "iridescent-oil-slick": "#6c5ce7",
-  "zebra-sketch": "#555555",
-  "firework-neon-splash": "#ff007f",
-  "pumpkin-orange": "#ff7518",
-  "shimmering-ruby-quartz": "#c71585",
-  "patchwork-plush": "#b5838d",
-  "cherry-blossom": "#ffcccc",
+  // 18 кастомных окрасов (по slug, по skin-XX и по номеру)
+  "wedding-white": "#f0f4f8", "skin-01": "#f0f4f8", "01": "#f0f4f8",
+  "sandy-cappuccino": "#c8ad8d", "skin-02": "#c8ad8d", "02": "#c8ad8d",
+  "obsidian-black": "#2d2b38", "skin-03": "#2d2b38", "03": "#2d2b38",
+  "peacock-emerald": "#00a877", "skin-04": "#00a877", "04": "#00a877",
+  "golden-gilded": "#ffd700", "skin-05": "#ffd700", "05": "#ffd700",
+  "cosmic-holographic": "#a084dc", "skin-06": "#a084dc", "06": "#a084dc",
+  "fire-lava": "#ff4500", "skin-07": "#ff4500", "07": "#ff4500",
+  "pink-flamingo": "#ff70a6", "skin-08": "#ff70a6", "08": "#ff70a6",
+  "cyberpunk-neon": "#00f0ff", "skin-09": "#00f0ff", "09": "#00f0ff",
+  "blue-frost-ice": "#a0e7e5", "skin-10": "#a0e7e5", "10": "#a0e7e5",
+  "spotted-leopard": "#e3a857", "skin-11": "#e3a857", "11": "#e3a857",
+  "iridescent-oil-slick": "#6c5ce7", "skin-12": "#6c5ce7", "12": "#6c5ce7",
+  "zebra-sketch": "#555555", "skin-13": "#555555", "13": "#555555",
+  "firework-neon-splash": "#ff007f", "skin-14": "#ff007f", "14": "#ff007f",
+  "pumpkin-orange": "#ff7518", "skin-15": "#ff7518", "15": "#ff7518",
+  "shimmering-ruby-quartz": "#c71585", "skin-16": "#c71585", "16": "#c71585",
+  "patchwork-plush": "#b5838d", "skin-17": "#b5838d", "17": "#b5838d",
+  "cherry-blossom": "#ffcccc", "skin-18": "#ffcccc", "18": "#ffcccc",
 };
+
+export function resolveSkinSrc(skin?: string | null): string {
+  if (!skin || skin === "common" || skin === "default") {
+    return "/assets/pigeon/body-base.webp";
+  }
+  const m = skin.match(/^skin-(\d+)/);
+  if (m) {
+    const num = String(parseInt(m[1], 10)).padStart(2, "0");
+    return `/assets/pigeon/skins/skin-${num}.webp`;
+  }
+  const num = parseInt(skin, 10);
+  if (!isNaN(num) && num >= 1 && num <= 18) {
+    return `/assets/pigeon/skins/skin-${String(num).padStart(2, "0")}.webp`;
+  }
+  const slugIdx = CUSTOM_SKIN_SLUGS.indexOf(skin as any);
+  if (slugIdx >= 0) {
+    return `/assets/pigeon/skins/skin-${String(slugIdx + 1).padStart(2, "0")}.webp`;
+  }
+  return "/assets/pigeon/body-base.webp";
+}
+
+export function resolveShoesSrc(shoes?: string | null): string | null {
+  if (!shoes || shoes === "none") return null;
+  const clean = shoes.replace(/^shoes-/, "").trim();
+  const num = parseInt(clean, 10);
+  if (!isNaN(num) && num >= 1 && num <= 18) {
+    return `/assets/pigeon/shoes/shoes-${String(num).padStart(2, "0")}.webp`;
+  }
+  return `/assets/pigeon/shoes/shoes-${clean}.webp`;
+}
 
 export function getPigeonSkinColor(
   skin?: string | null,
@@ -138,24 +189,46 @@ export const DEV_SKIN_OPTIONS = [
   { id: "epic", label: "Эпический (epic)" },
   { id: "legendary", label: "Легендарный (legendary)" },
   { id: "mythic", label: "Мифический (mythic)" },
-  { id: "wedding-white", label: "Свадебный белый" },
-  { id: "sandy-cappuccino", label: "Песочный капучино" },
-  { id: "obsidian-black", label: "Обсидиановый чёрный" },
-  { id: "peacock-emerald", label: "Павлиний изумруд" },
-  { id: "golden-gilded", label: "Золотое тиснение" },
-  { id: "cosmic-holographic", label: "Космический голографик" },
-  { id: "fire-lava", label: "Огненная лава" },
-  { id: "pink-flamingo", label: "Розовый фламинго" },
-  { id: "cyberpunk-neon", label: "Киберпанк неон" },
-  { id: "blue-frost-ice", label: "Ледяной иней" },
-  { id: "spotted-leopard", label: "Пятнистый леопард" },
-  { id: "iridescent-oil-slick", label: "Бензиновый перелив" },
-  { id: "zebra-sketch", label: "Зебра скетч" },
-  { id: "firework-neon-splash", label: "Неоновый салют" },
-  { id: "pumpkin-orange", label: "Тыквенный оранжевый" },
-  { id: "shimmering-ruby-quartz", label: "Рубиновый кварц" },
-  { id: "patchwork-plush", label: "Лоскутный плюш" },
-  { id: "cherry-blossom", label: "Цветение сакуры" },
+  { id: "skin-01", label: "01. Свадебный белый" },
+  { id: "skin-02", label: "02. Песочный капучино" },
+  { id: "skin-03", label: "03. Обсидиановый чёрный" },
+  { id: "skin-04", label: "04. Павлиний изумруд" },
+  { id: "skin-05", label: "05. Золотое тиснение" },
+  { id: "skin-06", label: "06. Космический голографик" },
+  { id: "skin-07", label: "07. Огненная лава" },
+  { id: "skin-08", label: "08. Розовый фламинго" },
+  { id: "skin-09", label: "09. Киберпанк неон" },
+  { id: "skin-10", label: "10. Ледяной иней" },
+  { id: "skin-11", label: "11. Пятнистый леопард" },
+  { id: "skin-12", label: "12. Бензиновый перелив" },
+  { id: "skin-13", label: "13. Зебра скетч" },
+  { id: "skin-14", label: "14. Неоновый салют" },
+  { id: "skin-15", label: "15. Тыквенный оранжевый" },
+  { id: "skin-16", label: "16. Рубиновый кварц" },
+  { id: "skin-17", label: "17. Лоскутный плюш" },
+  { id: "skin-18", label: "18. Цветение сакуры" },
+] as const;
+
+export const DEV_SHOES_OPTIONS = [
+  { id: "none", label: "Без обуви (none)" },
+  { id: "01", label: "01. Босые лапки (shoes-01)" },
+  { id: "02", label: "02. Вязаные носочки (shoes-02)" },
+  { id: "03", label: "03. Уличные кеды (shoes-03)" },
+  { id: "04", label: "04. Резиновые галоши (shoes-04)" },
+  { id: "05", label: "05. Спортивные кроссы (shoes-05)" },
+  { id: "06", label: "06. Жёлтые тимберы (shoes-06)" },
+  { id: "07", label: "07. Шлёпанцы с носками (shoes-07)" },
+  { id: "08", label: "08. Армейские берцы (shoes-08)" },
+  { id: "09", label: "09. Скейтерские вансы (shoes-09)" },
+  { id: "10", label: "10. Неоновые раннеры (shoes-10)" },
+  { id: "11", label: "11. Ретро-хайтопы (shoes-11)" },
+  { id: "12", label: "12. Лакированные туфли (shoes-12)" },
+  { id: "13", label: "13. Тактические сапоги (shoes-13)" },
+  { id: "14", label: "14. Светящиеся платформы (shoes-14)" },
+  { id: "15", label: "15. Гравитационные боты (shoes-15)" },
+  { id: "16", label: "16. Кибер-протекторы (shoes-16)" },
+  { id: "17", label: "17. Золотые сникерсы (shoes-17)" },
+  { id: "18", label: "18. Алмазные когти (shoes-18)" },
 ] as const;
 
 const DEV_EYE_OPTIONS = [
@@ -288,12 +361,19 @@ function Pigeon({
             role="img"
             aria-label={`Голубь KOO KOO, редкость: ${rarity[rarityIndex]}`}
           >
-            {/* Базовое тело (z-index: 10) */}
+            {/* Базовое тело (z-index: 10, с поддержкой 18 окрасов) */}
             <img
-              src="/assets/pigeon/body-base.webp"
+              src={resolveSkinSrc(skinTrait)}
               alt="Базовое тело голубя"
               className="pigeon-layer layer-base"
-              onError={() => setImgError(true)}
+              onError={(e) => {
+                const target = e.currentTarget as HTMLImageElement;
+                if (!target.src.includes("body-base.webp")) {
+                  target.src = "/assets/pigeon/body-base.webp";
+                } else {
+                  setImgError(true);
+                }
+              }}
             />
 
             {/* Слой шеи (z-index: 15, для common не выводится) */}
@@ -306,14 +386,20 @@ function Pigeon({
               />
             )}
 
-            {/* Слой обуви (z-index: 20) */}
-            {shoesTrait && (
+            {/* Слой обуви (z-index: 20, 18 вариантов) */}
+            {resolveShoesSrc(shoesTrait) && (
               <img
-                src={`/assets/pigeon/shoes-${shoesTrait}.webp`}
+                src={resolveShoesSrc(shoesTrait)!}
                 alt={`Обувь: ${shoesTrait}`}
                 className="pigeon-layer layer-shoes"
                 onError={(e) => {
-                  (e.currentTarget as HTMLElement).style.display = "none";
+                  const target = e.currentTarget as HTMLImageElement;
+                  const clean = (shoesTrait || "").replace(/^shoes-/, "");
+                  if (!target.src.includes(`shoes-${clean}.webp`)) {
+                    target.src = `/assets/pigeon/shoes-${clean}.webp`;
+                  } else {
+                    target.style.display = "none";
+                  }
                 }}
               />
             )}
@@ -663,6 +749,7 @@ export default function App() {
   const [previewRarity, setPreviewRarity] = useState<number | null>(null);
   const [previewEyes, setPreviewEyes] = useState<string | null>(null);
   const [previewSkin, setPreviewSkin] = useState<string | null>(null);
+  const [previewShoes, setPreviewShoes] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setCounter(Date.now()), 1000);
@@ -700,6 +787,12 @@ export default function App() {
   const activeRarity = previewRarity ?? rarityIndex;
   const activeEyes = previewEyes ?? eyeTrait;
   const activeSkin = previewSkin ?? skinTrait;
+  const activeShoes =
+    previewShoes !== null
+      ? previewShoes === "none"
+        ? null
+        : previewShoes
+      : bird?.traits?.shoes;
   const feeds = bird?.cycleFeeds ?? s.cycleFeeds;
   const startedAt = bird?.cycleStartedAt ?? s.cycleStartedAt;
   const expired =
@@ -879,7 +972,7 @@ export default function App() {
             feedEffect={s.feedEffect}
             eyeTrait={activeEyes}
             skinTrait={activeSkin}
-            shoesTrait={bird?.traits?.shoes}
+            shoesTrait={activeShoes}
             clothingTrait={bird?.traits?.clothing}
             hatTrait={bird?.traits?.hat}
             onFeed={handleFeed}
@@ -940,7 +1033,8 @@ export default function App() {
                 <small>🛠 DEV ПРЕВЬЮ СЛОЁВ ГОЛУБЯ</small>
                 {(previewRarity !== null ||
                   previewEyes !== null ||
-                  previewSkin !== null) && (
+                  previewSkin !== null ||
+                  previewShoes !== null) && (
                   <button
                     type="button"
                     className="dev-preview-reset"
@@ -948,6 +1042,7 @@ export default function App() {
                       setPreviewRarity(null);
                       setPreviewEyes(null);
                       setPreviewSkin(null);
+                      setPreviewShoes(null);
                     }}
                   >
                     ↺ Сброс
@@ -988,6 +1083,19 @@ export default function App() {
                     onChange={(e) => setPreviewSkin(e.target.value)}
                   >
                     {DEV_SKIN_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Обувь:</span>
+                  <select
+                    value={previewShoes ?? (activeShoes || "none")}
+                    onChange={(e) => setPreviewShoes(e.target.value)}
+                  >
+                    {DEV_SHOES_OPTIONS.map((opt) => (
                       <option key={opt.id} value={opt.id}>
                         {opt.label}
                       </option>

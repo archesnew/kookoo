@@ -319,11 +319,203 @@ def save_webp(img: Image.Image, out_path: Path):
 
     clean_img = Image.fromarray(arr, "RGBA")
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    clean_img.save(out_path, "WEBP", quality=95, method=6)
+    clean_img.save(out_path, "WEBP", quality=95, method=4)
+
+
+def build_skins_assets(bb_mask: np.ndarray):
+    """
+    Автоматически нарезает 3 листа skins (skins1.jpg, skins2.jpg, skins3.jpg) в сетке 2x3
+    на 18 отдельных вариантов (512x512):
+    - удаляет белый фон и тень на полу с чистым alpha-каналом и де-фринжингом краёв;
+    - выравнивает каждый окрас по координатам эталонного базового голубя;
+    - сохраняет в public/assets/pigeon/skins/skin-01.webp … skin-18.webp.
+    """
+    skins_dir = RAW_DIR / "skins"
+    if not skins_dir.exists():
+        alt_skins = Path(r"C:\Users\Chessie\Documents\KOO KOO\raw assets\skins")
+        if alt_skins.exists():
+            skins_dir = alt_skins
+
+    sheet_names = ["skins1.jpg", "skins2.jpg", "skins3.jpg"]
+    out_skins_dir = OUT_DIR / "skins"
+    out_skins_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"\n[4/5] Нарезка и выравнивание 18 окрасов (skins) из {skins_dir}...")
+    skin_idx = 1
+    for s_name in sheet_names:
+        sheet_path = skins_dir / s_name
+        if not sheet_path.exists():
+            print(f"  ⚠ Пропуск: {s_name} не найден")
+            continue
+        sheet = cv2.imread(str(sheet_path))
+        for idx in range(6):
+            r = idx // 3
+            c = idx % 3
+            cell = sheet[r*896:(r+1)*896, c*800:(c+1)*800]
+
+            # Выделение силуэта птицы в ячейке
+            cell_fg = ((cell.mean(axis=2) < 235) & (np.arange(896)[:, None] < 855)).astype(np.uint8)
+            y, x = np.where(cell_fg)
+            ymin, ymax, xmin, xmax = y.min(), y.max(), x.min(), x.max()
+            crop_rgb = cell[ymin:ymax, xmin:xmax]
+            crop_fg = cell_fg[ymin:ymax, xmin:xmax]
+
+            # Масштабирование до высоты базового голубя (392 px)
+            scale = 392.0 / (ymax - ymin)
+            res_rgb = cv2.resize(crop_rgb, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_LANCZOS4)
+            res_fg = cv2.resize(crop_fg, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
+
+            # Быстрое сопоставление силуэта для идеального совпадения координат
+            match_res = cv2.matchTemplate(bb_mask, res_fg, cv2.TM_CCORR_NORMED)
+            _, _, _, max_loc = cv2.minMaxLoc(match_res)
+            px, py = max_loc
+            th, tw = res_fg.shape
+
+            canvas_rgb = np.zeros((512, 512, 3), dtype=np.float32)
+            canvas_alpha = np.zeros((512, 512), dtype=np.float32)
+
+            canvas_rgb[py:py+th, px:px+tw] = res_rgb
+
+            # Расчёт альфа-канала с плавным антиалиасингом
+            dist_white = np.sqrt(np.sum((255.0 - res_rgb)**2, axis=-1))
+            t = np.clip((dist_white - 8.0) / (25.0 - 8.0), 0.0, 1.0)
+            alpha_patch = res_fg * t
+            canvas_alpha[py:py+th, px:px+tw] = alpha_patch
+
+            # Мягкое сглаживание контура альфы
+            canvas_alpha = cv2.GaussianBlur(canvas_alpha, (3, 3), 0.5)
+            canvas_alpha[canvas_alpha < 0.08] = 0.0
+
+            # Отсечение паразитных бликов пола в самом низу
+            is_bottom = np.arange(512)[:, None] > 465
+            canvas_alpha[is_bottom & (canvas_rgb.mean(axis=-1) > 170)] = 0.0
+
+            # Де-фринжинг: впечатывание истинных цветов оперения на полупрозрачные края
+            core = (canvas_alpha > 0.90).astype(np.uint8)
+            inpaint_mask = ((canvas_alpha > 0) & (canvas_alpha <= 0.90)).astype(np.uint8) * 255
+            inpainted = cv2.inpaint(np.clip(canvas_rgb, 0, 255).astype(np.uint8), inpaint_mask, 5, cv2.INPAINT_TELEA)
+
+            edge = (canvas_alpha > 0) & (canvas_alpha <= 0.90)
+            final_rgb = canvas_rgb.copy()
+            final_rgb[edge] = inpainted[edge]
+
+            final_alpha = (canvas_alpha * 255.0).astype(np.uint8)
+            final_rgb[final_alpha == 0] = [0, 0, 0]
+            final_rgb = np.clip(final_rgb, 0, 255).astype(np.uint8)
+
+            rgba = np.dstack([final_rgb, final_alpha])
+            skin_img = Image.fromarray(rgba, "RGBA")
+
+            out_file = out_skins_dir / f"skin-{skin_idx:02d}.webp"
+            save_webp(skin_img, out_file)
+            # Также сохраняем дубликат прямо в OUT_DIR для обратной совместимости
+            save_webp(skin_img, OUT_DIR / f"skin-{skin_idx:02d}.webp")
+            print(f"  ✓ Скин #{skin_idx:02d}: сохранён в {out_file.name} (512x512, пикселей: {int(np.sum(final_alpha > 20))})")
+            skin_idx += 1
+
+
+def build_shoes_assets(bb_arr: np.ndarray, base_512: np.ndarray):
+    """
+    Автоматически нарезает 3 листа shoes (shoes1.jpg, shoes2.jpg, shoes3.jpg) в сетке 2x3
+    на 18 отдельных пар обуви (512x512):
+    - выравнивает кадр по базовому голубю;
+    - вычитает тело базового голубя, белый фон и тень на полу;
+    - сохраняет в public/assets/pigeon/shoes/shoes-01.webp … shoes-18.webp.
+    """
+    shoes_dir = RAW_DIR / "shoes"
+    if not shoes_dir.exists():
+        alt_shoes = Path(r"C:\Users\Chessie\Documents\KOO KOO\raw assets\shoes")
+        if alt_shoes.exists():
+            shoes_dir = alt_shoes
+
+    sheet_names = ["shoes1.jpg", "shoes2.jpg", "shoes3.jpg"]
+    out_shoes_dir = OUT_DIR / "shoes"
+    out_shoes_dir.mkdir(parents=True, exist_ok=True)
+
+    head_ref = base_512[75:225, 200:375]
+    head_ref_gray = cv2.cvtColor(head_ref, cv2.COLOR_BGR2GRAY)
+
+    print(f"\n[5/5] Нарезка, выравнивание и изоляция 18 пар обуви (shoes) из {shoes_dir}...")
+    shoe_idx = 1
+    for s_name in sheet_names:
+        sheet_path = shoes_dir / s_name
+        if not sheet_path.exists():
+            print(f"  ⚠ Пропуск: {s_name} не найден")
+            continue
+        sheet = cv2.imread(str(sheet_path))
+        for idx in range(6):
+            r = idx // 3
+            c = idx % 3
+            cell = sheet[r*896:(r+1)*896, c*800:(c+1)*800]
+
+            # Поиск масштаба и смещения головы базового голубя
+            best_val, best_s, best_loc = -1, 0.53, (0, 0)
+            for s in np.linspace(0.49, 0.54, 11):
+                c_res = cv2.resize(cell, (0, 0), fx=s, fy=s)
+                res = cv2.matchTemplate(cv2.cvtColor(c_res, cv2.COLOR_BGR2GRAY), head_ref_gray, cv2.TM_CCOEFF_NORMED)
+                _, mv, _, ml = cv2.minMaxLoc(res)
+                if mv > best_val:
+                    best_val, best_s, best_loc = mv, s, ml
+
+            tx = 200 - best_loc[0]
+            ty = 75 - best_loc[1]
+
+            c_scaled = cv2.resize(cell, (0, 0), fx=best_s, fy=best_s)
+            sh, sw = c_scaled.shape[:2]
+            aligned = np.full((512, 512, 3), 255, dtype=np.uint8)
+
+            x1, y1 = max(0, tx), max(0, ty)
+            x2, y2 = min(512, tx + sw), min(512, ty + sh)
+            sx1, sy1 = max(0, -tx), max(0, -ty)
+            sx2, sy2 = sx1 + (x2 - x1), sy1 + (y2 - y1)
+            aligned[y1:y2, x1:x2] = c_scaled[sy1:sy2, sx1:sx2]
+
+            # Выделение зоны обуви
+            y_grid, x_grid = np.indices((512, 512))
+            bright = np.mean(aligned, axis=2)
+            diff_wb = np.max(aligned, axis=2) - np.min(aligned, axis=2)
+
+            is_white = (bright > 225) & (diff_wb < 25)
+            is_floor = (y_grid > 466) & (bright > 175) & (diff_wb < 25)
+            is_feet_zone = (y_grid >= 391) & (y_grid <= 472) & (x_grid >= 158) & (x_grid <= 392)
+
+            # Вычитание перьев тела базового голубя в верхней части ног
+            is_feather = (y_grid < 415) & (bb_arr[:,:,2] < 140) & (bb_arr[:,:,0] > 90) & \
+                         (np.abs(aligned[:,:,0].astype(int) - bb_arr[:,:,0].astype(int)) < 35) & \
+                         (np.abs(aligned[:,:,2].astype(int) - bb_arr[:,:,2].astype(int)) < 35)
+
+            shoe_mask = is_feet_zone & ~is_white & ~is_floor & ~is_feather
+
+            alpha = (shoe_mask.astype(np.float32) * 255.0)
+            alpha = cv2.GaussianBlur(alpha, (3, 3), 0.6)
+            alpha[alpha < 25] = 0
+
+            # Де-фринжинг краёв обуви
+            core = (alpha > 200).astype(np.uint8)
+            inpaint_mask = ((alpha > 0) & (alpha <= 200)).astype(np.uint8) * 255
+            inpainted = cv2.inpaint(aligned, inpaint_mask, 4, cv2.INPAINT_TELEA)
+
+            edge = (alpha > 0) & (alpha <= 200)
+            final_rgb = aligned.copy()
+            final_rgb[edge] = inpainted[edge]
+
+            final_alpha = alpha.astype(np.uint8)
+            final_rgb[final_alpha == 0] = [0, 0, 0]
+
+            rgba = np.dstack([final_rgb, final_alpha])
+            shoe_img = Image.fromarray(rgba, "RGBA")
+
+            out_file = out_shoes_dir / f"shoes-{shoe_idx:02d}.webp"
+            save_webp(shoe_img, out_file)
+            # Также сохраняем дубликат прямо в OUT_DIR для обратной совместимости
+            save_webp(shoe_img, OUT_DIR / f"shoes-{shoe_idx:02d}.webp")
+            print(f"  ✓ Обувь #{shoe_idx:02d}: сохранена в {out_file.name} (512x512, пикселей: {int(np.sum(final_alpha > 20))})")
+            shoe_idx += 1
 
 
 def main():
-    print(f"=== Сборка ассетов персонажа KOO KOO (цельная шея, чистый пол, де-фринжинг) ===")
+    force = "--force" in sys.argv
+    print(f"=== Сборка ассетов персонажа KOO KOO (тело, шея, глаза, веки, 18 скинов, 18 пар обуви) ===")
     print(f"Исходники: {RAW_DIR}")
     print(f"Вывод:     {OUT_DIR}")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -333,62 +525,91 @@ def main():
         print(f"ОШИБКА: Файл base.jpg не найден в {RAW_DIR}")
         sys.exit(1)
 
-    print("\n[1/3] Обработка базового тела body-base.webp (отсечение тени пола + де-фринжинг)...")
-    base_raw = Image.open(base_path)
-    base_rgba, fg_clean = extract_base_body(base_raw)
     base_out = OUT_DIR / "body-base.webp"
-    save_webp(base_rgba, base_out)
-    print(f"  ✓ Сохранено: {base_out.name} ({TARGET_SIZE[0]}x{TARGET_SIZE[1]})")
+    if not base_out.exists() or force:
+        print("\n[1/5] Обработка базового тела body-base.webp (отсечение тени пола + де-фринжинг)...")
+        base_raw = Image.open(base_path)
+        base_rgba, fg_clean = extract_base_body(base_raw)
+        save_webp(base_rgba, base_out)
+        print(f"  ✓ Сохранено: {base_out.name} ({TARGET_SIZE[0]}x{TARGET_SIZE[1]})")
+        base_arr = np.array(base_raw.convert("RGB"), dtype=np.float32)
+    else:
+        print(f"\n[1/5] Базовое тело уже существует ({base_out.name}), используем готовое.")
+        base_arr = np.array(Image.open(base_path).convert("RGB"), dtype=np.float32)
+        fg_clean = (cv2.imread(str(base_out), cv2.IMREAD_UNCHANGED)[:, :, 3] > 0)
 
-    base_arr = np.array(base_raw.convert("RGB"), dtype=np.float32)
+    # Шея
+    neck_missing = any(not (OUT_DIR / dst).exists() for dst in NECK_MAPPING.values())
+    if neck_missing or force:
+        print("\n[2/5] Формирование цельной маски шеи и сборка 5 слоёв (neck)...")
+        neck_paths = [RAW_DIR / name for name in NECK_MAPPING.keys()]
+        neck_mask = build_solid_neck_mask(neck_paths, base_arr, fg_clean)
+        print(f"  ✓ Цельная маска шеи создана: площадь покрытия {int(np.sum(neck_mask > 0.5))} пикселей")
 
-    print("\n[2/3] Формирование цельной маски шеи и сборка 5 слоёв (neck)...")
-    neck_paths = [RAW_DIR / name for name in NECK_MAPPING.keys()]
-    neck_mask = build_solid_neck_mask(neck_paths, base_arr, fg_clean)
-    print(f"  ✓ Цельная маска шеи создана: площадь покрытия {int(np.sum(neck_mask > 0.5))} пикселей")
+        for src_name, dst_name in NECK_MAPPING.items():
+            src_path = RAW_DIR / src_name
+            if not src_path.exists():
+                print(f"  ⚠ Пропуск: {src_name} не найден")
+                continue
+            neck_raw = Image.open(src_path)
+            neck_layer = extract_neck_layer(neck_raw, neck_mask)
+            dst_path = OUT_DIR / dst_name
+            save_webp(neck_layer, dst_path)
+            print(f"  ✓ {src_name} -> {dst_name}")
+    else:
+        print(f"\n[2/5] Все 5 слоёв шеи уже существуют, пропуск регенерации.")
 
-    for src_name, dst_name in NECK_MAPPING.items():
-        src_path = RAW_DIR / src_name
-        if not src_path.exists():
-            print(f"  ⚠ Пропуск: {src_name} не найден")
-            continue
-        neck_raw = Image.open(src_path)
-        neck_layer = extract_neck_layer(neck_raw, neck_mask)
-        dst_path = OUT_DIR / dst_name
-        save_webp(neck_layer, dst_path)
-        print(f"  ✓ {src_name} -> {dst_name}")
+    # Глаза
+    eyes_missing = any(not (OUT_DIR / dst).exists() for dst in EYES_MAPPING.values())
+    if eyes_missing or force:
+        print("\n[3/5] Обработка 9 слоёв глаз (eyes)...")
+        for src_name, dst_name in EYES_MAPPING.items():
+            src_path = RAW_DIR / src_name
+            if not src_path.exists():
+                print(f"  ⚠ Пропуск: {src_name} не найден")
+                continue
+            eyes_raw = Image.open(src_path)
+            eyes_layer = extract_eyes_layer(eyes_raw, base_arr, fg_clean)
+            dst_path = OUT_DIR / dst_name
+            save_webp(eyes_layer, dst_path)
 
-    print("\n[3/3] Обработка 9 слоёв глаз (eyes)...")
-    for src_name, dst_name in EYES_MAPPING.items():
-        src_path = RAW_DIR / src_name
-        if not src_path.exists():
-            print(f"  ⚠ Пропуск: {src_name} не найден")
-            continue
-        eyes_raw = Image.open(src_path)
-        eyes_layer = extract_eyes_layer(eyes_raw, base_arr, fg_clean)
-        dst_path = OUT_DIR / dst_name
-        save_webp(eyes_layer, dst_path)
+            # Вариант Б: разделение на веки (eyelids) и зрачки/белки (eyes)
+            eyelids_img, pupils_img = extract_eyelids_and_pupils(eyes_layer)
+            trait_key = dst_name.replace("eyes-", "").replace(".webp", "")
+            save_webp(eyelids_img, OUT_DIR / f"eyelids-{trait_key}.webp")
+            save_webp(eyelids_img, OUT_DIR / f"eyelids_{trait_key}.webp")
+            save_webp(pupils_img, OUT_DIR / f"eyes_{trait_key}.webp")
+            print(f"  ✓ {src_name} -> {dst_name} + eyelids_{trait_key}.webp + eyes_{trait_key}.webp")
+    else:
+        print(f"\n[3/5] Все 9 слоёв глаз и век уже существуют, пропуск регенерации.")
 
-        # Вариант Б: разделение на веки (eyelids) и зрачки/белки (eyes)
-        eyelids_img, pupils_img = extract_eyelids_and_pupils(eyes_layer)
-        trait_key = dst_name.replace("eyes-", "").replace(".webp", "")
-        save_webp(eyelids_img, OUT_DIR / f"eyelids-{trait_key}.webp")
-        save_webp(eyelids_img, OUT_DIR / f"eyelids_{trait_key}.webp")
-        save_webp(pupils_img, OUT_DIR / f"eyes_{trait_key}.webp")
-        print(f"  ✓ {src_name} -> {dst_name} + eyelids_{trait_key}.webp + eyes_{trait_key}.webp")
+    # Загружаем подготовленные слои для выравнивания скинов и обуви
+    bb_arr = cv2.imread(str(OUT_DIR / "body-base.webp"), cv2.IMREAD_UNCHANGED)
+    bb_mask = (bb_arr[:, :, 3] > 128).astype(np.uint8)
+    base_512 = cv2.resize(cv2.imread(str(base_path)), (512, 512))
+
+    # Сборка 18 окрасов (skins)
+    build_skins_assets(bb_mask)
+
+    # Сборка 18 пар обуви (shoes)
+    build_shoes_assets(bb_arr, base_512)
 
     # Синхронизация с параллельной директорией при наличии
     if ALT_OUT_DIR.parent.parent.exists():
         try:
             ALT_OUT_DIR.mkdir(parents=True, exist_ok=True)
-            for f in OUT_DIR.glob("*.webp"):
-                shutil.copy2(f, ALT_OUT_DIR / f.name)
-            print(f"\n✓ Успешно синхронизировано в {ALT_OUT_DIR}")
+            for sub in ["", "skins", "shoes"]:
+                src_sub = OUT_DIR / sub
+                dst_sub = ALT_OUT_DIR / sub
+                dst_sub.mkdir(parents=True, exist_ok=True)
+                for f in src_sub.glob("*.webp"):
+                    shutil.copy2(f, dst_sub / f.name)
+            print(f"\n✓ Успешно синхронизировано в {ALT_OUT_DIR} (включая skins и shoes)")
         except Exception as e:
             print(f"  (Предупреждение: синхронизация в ALT_OUT_DIR не удалась: {e})")
 
-    total_files = len(list(OUT_DIR.glob("*.webp")))
-    print(f"\nГотово! Всего сгенерировано файлов: {total_files}/15 в {OUT_DIR}")
+    total_files = len(list(OUT_DIR.rglob("*.webp")))
+    print(f"\nГотово! Всего сгенерировано файлов: {total_files} в {OUT_DIR}")
 
 
 if __name__ == "__main__":

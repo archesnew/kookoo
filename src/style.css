@@ -915,8 +915,8 @@ button:disabled {
 }
 
 .dev-preview-controls label {
-  flex: 1 1 30%;
-  min-width: 95px;
+  flex: 1 1 calc(25% - 8px);
+  min-width: 76px;
   display: flex;
   flex-direction: column;
   gap: 3px;
