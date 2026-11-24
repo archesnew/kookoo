@@ -63,6 +63,21 @@ export type Bird = {
   traits?: PigeonTraits;
 };
 
+/**
+ * Форматирует отображаемый личный номер голубя (например, "#0001").
+ * Извлекает числовой идентификатор из id (например, "bird-001" -> "#0001")
+ * или использует порядковый индекс + 1 как надёжный fallback.
+ */
+export function formatBirdNumber(
+  bird?: { id?: string } | null,
+  fallbackIndex = 0
+): string {
+  if (!bird?.id) return `#${String(fallbackIndex + 1).padStart(4, "0")}`;
+  const match = bird.id.match(/\d+/);
+  const num = match ? parseInt(match[0], 10) : fallbackIndex + 1;
+  return `#${String(num).padStart(4, "0")}`;
+}
+
 export type Game = {
   seeds: number;
   xp: number;

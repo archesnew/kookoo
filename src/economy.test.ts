@@ -12,6 +12,7 @@ import {
   canCollectCrumbs,
   collectCrumbs,
   migrateGameState,
+  formatBirdNumber,
   type Game,
 } from "./economy";
 import {
@@ -642,6 +643,75 @@ describe("KOO KOO Economy v0.2", () => {
       const afterCrumbsFeed = feed(game, now);
       expect(afterCrumbsFeed.seeds).toBe(ECONOMY.crumbsReward - cost);
       expect(afterCrumbsFeed.totalFeeds).toBe(1);
+    });
+  });
+
+  /* ───────── 8. Номерной формат голубей (#0001) без имён и совместимость koo-koo-v01 ───────── */
+  describe("Номерной формат голубей (#0001) без имён и сохранение прогресса", () => {
+    it("корректно форматирует личные номера голубей с паддингом до 4 цифр", () => {
+      expect(formatBirdNumber({ id: "bird-001" })).toBe("#0001");
+      expect(formatBirdNumber({ id: "bird-002" })).toBe("#0002");
+      expect(formatBirdNumber({ id: "bird-012" })).toBe("#0012");
+      expect(formatBirdNumber({ id: "pigeon-99" })).toBe("#0099");
+      expect(formatBirdNumber({ id: "bird-1234" })).toBe("#1234");
+      // Fallback при отсутствии цифр в id или при пустом значении:
+      expect(formatBirdNumber({ id: "unknown" }, 0)).toBe("#0001");
+      expect(formatBirdNumber({ id: "unknown" }, 4)).toBe("#0005");
+      expect(formatBirdNumber(null, 0)).toBe("#0001");
+      expect(formatBirdNumber(undefined, 2)).toBe("#0003");
+    });
+
+    it("гарантирует отсутствие свойства name в исходном состоянии и у создаваемых голубей", () => {
+      const g = initialGame();
+      expect(g.birds[0].id).toBe("bird-001");
+      expect((g.birds[0] as any).name).toBeUndefined();
+
+      // Создание голубя через разбитие яйца 4 уровня (достижение)
+      const boardWithLvl4: (any | null)[] = Array(25).fill(null);
+      boardWithLvl4[0] = { id: "egg-lvl4", level: 4 };
+      const gWithEgg = { ...g, board: boardWithLvl4, lvl4BirdAwarded: false };
+      const result = hatch(gWithEgg, 0, () => 0.99); // без джекпота и случайного дропа
+      expect(result).not.toBeNull();
+      expect(result!.game.birds).toHaveLength(2);
+
+      const secondBird = result!.game.birds[1];
+      expect(secondBird.id).toBe("bird-002");
+      expect((secondBird as any).name).toBeUndefined();
+      expect(formatBirdNumber(secondBird)).toBe("#0002");
+    });
+
+    it("мигрирует старые сохранения с кастомными именами, не ломая структуру и сохраняя #0001", () => {
+      const legacySaveWithNames = {
+        seeds: 1500,
+        xp: 45,
+        level: 3,
+        rarity: 1,
+        cycleFeeds: 5,
+        cycleStartedAt: 12345678,
+        birds: [
+          { id: "bird-001", name: "Крош", rarity: 0, cycleFeeds: 2, cycleStartedAt: null },
+          { id: "bird-002", name: "Птица-Гром", rarity: 1, cycleFeeds: 0, cycleStartedAt: null },
+        ],
+        activeBirdId: "bird-001",
+        totalFeeds: 15,
+        eggs: [],
+        queue: [],
+        board: Array(25).fill(null),
+        hatched: 2,
+      };
+
+      const migrated = migrateGameState(legacySaveWithNames);
+      expect(migrated.seeds).toBe(1500);
+      expect(migrated.level).toBe(3);
+      expect(migrated.birds).toHaveLength(2);
+
+      // Имена не сохраняются в объектах птиц
+      expect((migrated.birds[0] as any).name).toBeUndefined();
+      expect((migrated.birds[1] as any).name).toBeUndefined();
+
+      // Отображаемый номер формируется строго по id
+      expect(formatBirdNumber(migrated.birds[0])).toBe("#0001");
+      expect(formatBirdNumber(migrated.birds[1])).toBe("#0002");
     });
   });
 });

@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { useGame } from "./store";
-import { ECONOMY, feedCost, canCollectCrumbs, minFeedCost } from "./economy";
+import {
+  ECONOMY,
+  feedCost,
+  canCollectCrumbs,
+  minFeedCost,
+  formatBirdNumber,
+} from "./economy";
 
 const rarity = [
   "Обычный",
@@ -604,10 +610,9 @@ export default function App() {
             </div>
             <div className="bird-title">
               <div>
-                <h1>Крош</h1>
+                <h1>{formatBirdNumber(bird, s.birdIndex)}</h1>
                 <small>
-                  Голубь #{String(s.birdIndex + 1).padStart(4, "0")} · Ур.{" "}
-                  {s.level}
+                  {rarity[activeRarity]} · Ур. {s.level}
                 </small>
               </div>
               <div className="switch">
