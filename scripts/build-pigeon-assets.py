@@ -414,12 +414,22 @@ def build_skins_assets(bb_mask: np.ndarray):
             skin_idx += 1
 
 
+def fill_mask_holes(mask: np.ndarray) -> np.ndarray:
+    """Заполняет внутренние дыры в бинарной маске через floodFill инверсии."""
+    inv = (~mask).astype(np.uint8) * 255
+    h, w = mask.shape
+    flood = np.zeros((h + 2, w + 2), dtype=np.uint8)
+    cv2.floodFill(inv, flood, (0, 0), 0)
+    return mask | (inv > 0)
+
+
 def build_shoes_assets(bb_arr: np.ndarray, base_512: np.ndarray):
     """
     Автоматически нарезает 3 листа shoes (shoes1.jpg, shoes2.jpg, shoes3.jpg) в сетке 2x3
     на 18 отдельных пар обуви (512x512):
-    - выравнивает кадр по базовому голубю;
-    - вычитает тело базового голубя, белый фон и тень на полу;
+    - выравнивает кадр по голове базового голубя;
+    - сохраняет полную высоту обуви (подошва до y=508, воротник до y=395);
+    - убирает белый фон и тень пола без срезания белых элементов кед/подошвы (fill_mask_holes);
     - сохраняет в public/assets/pigeon/shoes/shoes-01.webp … shoes-18.webp.
     """
     shoes_dir = RAW_DIR / "shoes"
@@ -435,7 +445,7 @@ def build_shoes_assets(bb_arr: np.ndarray, base_512: np.ndarray):
     head_ref = base_512[75:225, 200:375]
     head_ref_gray = cv2.cvtColor(head_ref, cv2.COLOR_BGR2GRAY)
 
-    print(f"\n[5/5] Нарезка, выравнивание и изоляция 18 пар обуви (shoes) из {shoes_dir}...")
+    print(f"\n[5/7] Нарезка, выравнивание и изоляция 18 пар обуви (shoes) из {shoes_dir}...")
     shoe_idx = 1
     for s_name in sheet_names:
         sheet_path = shoes_dir / s_name
@@ -443,14 +453,16 @@ def build_shoes_assets(bb_arr: np.ndarray, base_512: np.ndarray):
             print(f"  ⚠ Пропуск: {s_name} не найден")
             continue
         sheet = cv2.imread(str(sheet_path))
+        cw = sheet.shape[1] // 3
+        ch = sheet.shape[0] // 2
         for idx in range(6):
             r = idx // 3
             c = idx % 3
-            cell = sheet[r*896:(r+1)*896, c*800:(c+1)*800]
+            cell = sheet[r*ch:(r+1)*ch, c*cw:(c+1)*cw]
 
             # Поиск масштаба и смещения головы базового голубя
             best_val, best_s, best_loc = -1, 0.53, (0, 0)
-            for s in np.linspace(0.49, 0.54, 11):
+            for s in np.linspace(0.49, 0.55, 13):
                 c_res = cv2.resize(cell, (0, 0), fx=s, fy=s)
                 res = cv2.matchTemplate(cv2.cvtColor(c_res, cv2.COLOR_BGR2GRAY), head_ref_gray, cv2.TM_CCOEFF_NORMED)
                 _, mv, _, ml = cv2.minMaxLoc(res)
@@ -470,30 +482,41 @@ def build_shoes_assets(bb_arr: np.ndarray, base_512: np.ndarray):
             sx2, sy2 = sx1 + (x2 - x1), sy1 + (y2 - y1)
             aligned[y1:y2, x1:x2] = c_scaled[sy1:sy2, sx1:sx2]
 
-            # Выделение зоны обуви
+            # Выделение зоны обуви с полной подошвой и воротником
             y_grid, x_grid = np.indices((512, 512))
             bright = np.mean(aligned, axis=2)
             diff_wb = np.max(aligned, axis=2) - np.min(aligned, axis=2)
 
-            is_white = (bright > 225) & (diff_wb < 25)
-            is_floor = (y_grid > 466) & (bright > 175) & (diff_wb < 25)
-            is_feet_zone = (y_grid >= 391) & (y_grid <= 472) & (x_grid >= 158) & (x_grid <= 392)
+            is_pure_white = (bright > 245) & (diff_wb < 15)
+            # Тень пола (строго под подошвой, нейтральный серый градиент)
+            is_floor = (y_grid > 475) & (diff_wb <= 8) & (bright > 185)
 
-            # Вычитание перьев тела базового голубя в верхней части ног
-            is_feather = (y_grid < 415) & (bb_arr[:,:,2] < 140) & (bb_arr[:,:,0] > 90) & \
-                         (np.abs(aligned[:,:,0].astype(int) - bb_arr[:,:,0].astype(int)) < 35) & \
-                         (np.abs(aligned[:,:,2].astype(int) - bb_arr[:,:,2].astype(int)) < 35)
+            # Вычитание перьев тела голубя выше зоны обуви
+            diff_base = np.max(np.abs(aligned.astype(int) - base_512.astype(int)), axis=2)
+            is_pigeon_body = (y_grid < 420) & (diff_base < 35) & ((y_grid < 405) | (diff_base < 25))
+            is_above = (y_grid < 395)
+            is_outside_x = (x_grid < 145) | (x_grid > 405)
+            is_deep_floor = (y_grid > 508)
 
-            shoe_mask = is_feet_zone & ~is_white & ~is_floor & ~is_feather
+            raw_shoe_mask = ~is_pure_white & ~is_floor & ~is_pigeon_body & ~is_above & ~is_outside_x & ~is_deep_floor
+            # Заполняем внутренние дыры, чтобы белые подошвы и шнурки не пропадали
+            raw_shoe_mask = fill_mask_holes(raw_shoe_mask)
+
+            num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(raw_shoe_mask.astype(np.uint8))
+            shoe_mask = np.zeros_like(raw_shoe_mask)
+            for lbl in range(1, num_labels):
+                area = stats[lbl, cv2.CC_STAT_AREA]
+                cy = centroids[lbl][1]
+                if area > 120 and 395 <= cy <= 508:
+                    shoe_mask[labels == lbl] = True
 
             alpha = (shoe_mask.astype(np.float32) * 255.0)
-            alpha = cv2.GaussianBlur(alpha, (3, 3), 0.6)
+            alpha = cv2.GaussianBlur(alpha, (3, 3), 0.5)
             alpha[alpha < 25] = 0
 
             # Де-фринжинг краёв обуви
-            core = (alpha > 200).astype(np.uint8)
             inpaint_mask = ((alpha > 0) & (alpha <= 200)).astype(np.uint8) * 255
-            inpainted = cv2.inpaint(aligned, inpaint_mask, 4, cv2.INPAINT_TELEA)
+            inpainted = cv2.inpaint(aligned, inpaint_mask, 3, cv2.INPAINT_TELEA)
 
             edge = (alpha > 0) & (alpha <= 200)
             final_rgb = aligned.copy()
@@ -507,10 +530,217 @@ def build_shoes_assets(bb_arr: np.ndarray, base_512: np.ndarray):
 
             out_file = out_shoes_dir / f"shoes-{shoe_idx:02d}.webp"
             save_webp(shoe_img, out_file)
-            # Также сохраняем дубликат прямо в OUT_DIR для обратной совместимости
             save_webp(shoe_img, OUT_DIR / f"shoes-{shoe_idx:02d}.webp")
             print(f"  ✓ Обувь #{shoe_idx:02d}: сохранена в {out_file.name} (512x512, пикселей: {int(np.sum(final_alpha > 20))})")
             shoe_idx += 1
+
+
+def build_clothes_assets(base_512: np.ndarray):
+    """
+    Автоматически нарезает листы clothes (clothes1.jpg, clothes2.png, clothes3.png) в сетке 2x3
+    на 18 отдельных нарядов одежды (512x512):
+    - выравнивает кадр по голове базового голубя;
+    - изолирует одежду торса и крыльев;
+    - убирает белый фон, тень пола и лапы;
+    - сохраняет в public/assets/pigeon/clothes/clothes-01.webp … clothes-18.webp.
+    """
+    clothes_dir = RAW_DIR / "clothes"
+    if not clothes_dir.exists():
+        alt_clothes = Path(r"C:\Users\Chessie\Documents\KOO KOO\raw assets\clothes")
+        if alt_clothes.exists():
+            clothes_dir = alt_clothes
+
+    sheet_names = ["clothes1.jpg", "clothes2.png", "clothes3.png"]
+    out_clothes_dir = OUT_DIR / "clothes"
+    out_clothes_dir.mkdir(parents=True, exist_ok=True)
+
+    head_ref = base_512[75:225, 200:375]
+    head_ref_gray = cv2.cvtColor(head_ref, cv2.COLOR_BGR2GRAY)
+
+    print(f"\n[6/7] Нарезка, выравнивание и изоляция 18 нарядов одежды (clothes) из {clothes_dir}...")
+    cloth_idx = 1
+    for s_name in sheet_names:
+        sheet_path = clothes_dir / s_name
+        if not sheet_path.exists():
+            print(f"  ⚠ Пропуск: {s_name} не найден")
+            continue
+        sheet = cv2.imread(str(sheet_path))
+        cw = sheet.shape[1] // 3
+        ch = sheet.shape[0] // 2
+
+        for idx in range(6):
+            r = idx // 3
+            c = idx % 3
+            cell = sheet[r*ch:(r+1)*ch, c*cw:(c+1)*cw]
+
+            # Поиск масштаба и смещения головы
+            best_val, best_s, best_loc = -1, 0.53, (0, 0)
+            scales = np.linspace(0.48, 0.56, 17) if cw > 600 else np.linspace(0.80, 1.10, 19)
+            for s in scales:
+                c_res = cv2.resize(cell, (0, 0), fx=s, fy=s)
+                res = cv2.matchTemplate(cv2.cvtColor(c_res, cv2.COLOR_BGR2GRAY), head_ref_gray, cv2.TM_CCOEFF_NORMED)
+                _, mv, _, ml = cv2.minMaxLoc(res)
+                if mv > best_val:
+                    best_val, best_s, best_loc = mv, s, ml
+
+            tx = 200 - best_loc[0]
+            ty = 75 - best_loc[1]
+
+            c_scaled = cv2.resize(cell, (0, 0), fx=best_s, fy=best_s)
+            sh, sw = c_scaled.shape[:2]
+            aligned = np.full((512, 512, 3), 255, dtype=np.uint8)
+
+            x1, y1 = max(0, tx), max(0, ty)
+            x2, y2 = min(512, tx + sw), min(512, ty + sh)
+            sx1, sy1 = max(0, -tx), max(0, -ty)
+            sx2, sy2 = sx1 + (x2 - x1), sy1 + (y2 - y1)
+            aligned[y1:y2, x1:x2] = c_scaled[sy1:sy2, sx1:sx2]
+
+            bright = np.mean(aligned, axis=2)
+            diff_wb = np.max(aligned, axis=2) - np.min(aligned, axis=2)
+            is_pure_white = (bright > 245) & (diff_wb < 15)
+
+            y_grid, x_grid = np.indices((512, 512))
+            # Зона одежды: торс, шея, плечи и крылья
+            is_clothes_zone = (y_grid >= 195) & (y_grid <= 462) & (x_grid >= 85) & (x_grid <= 430)
+            is_orange_feet = (y_grid > 415) & (aligned[:,:,2] > 170) & (aligned[:,:,1] > 60) & (aligned[:,:,0] < 60)
+            is_floor = (y_grid > 460) & (diff_wb <= 10) & (bright > 180)
+
+            clothes_mask = is_clothes_zone & ~is_pure_white & ~is_orange_feet & ~is_floor
+            clothes_mask = fill_mask_holes(clothes_mask)
+
+            num_l, labels, stats, centroids = cv2.connectedComponentsWithStats(clothes_mask.astype(np.uint8))
+            clean_clothes = np.zeros_like(clothes_mask)
+            for lbl in range(1, num_l):
+                if stats[lbl, cv2.CC_STAT_AREA] > 400:
+                    clean_clothes[labels == lbl] = True
+
+            alpha = (clean_clothes.astype(np.float32) * 255.0)
+            alpha = cv2.GaussianBlur(alpha, (3, 3), 0.5)
+            alpha[alpha < 25] = 0
+
+            inpaint_mask = ((alpha > 0) & (alpha <= 200)).astype(np.uint8) * 255
+            inpainted = cv2.inpaint(aligned, inpaint_mask, 3, cv2.INPAINT_TELEA)
+
+            edge = (alpha > 0) & (alpha <= 200)
+            final_rgb = aligned.copy()
+            final_rgb[edge] = inpainted[edge]
+
+            final_alpha = alpha.astype(np.uint8)
+            final_rgb[final_alpha == 0] = [0, 0, 0]
+
+            rgba = np.dstack([final_rgb, final_alpha])
+            cloth_img = Image.fromarray(rgba, "RGBA")
+
+            out_file = out_clothes_dir / f"clothes-{cloth_idx:02d}.webp"
+            save_webp(cloth_img, out_file)
+            save_webp(cloth_img, OUT_DIR / f"clothes-{cloth_idx:02d}.webp")
+            print(f"  ✓ Одежда #{cloth_idx:02d}: сохранена в {out_file.name} (512x512, пикселей: {int(np.sum(final_alpha > 20))})")
+            cloth_idx += 1
+
+
+def build_hats_assets(base_512: np.ndarray):
+    """
+    Автоматически нарезает листы hats (hats1.png, hats2.png, hats3.png) в сетке 2x3
+    на 18 отдельных головных уборов (512x512):
+    - выравнивает кадр по лицу базового голубя;
+    - изолирует головной убор на макушке (y < 210);
+    - убирает белый фон и тело голубя;
+    - сохраняет в public/assets/pigeon/hats/hats-01.webp … hats-18.webp.
+    """
+    hats_dir = RAW_DIR / "hats"
+    if not hats_dir.exists():
+        alt_hats = Path(r"C:\Users\Chessie\Documents\KOO KOO\raw assets\hats")
+        if alt_hats.exists():
+            hats_dir = alt_hats
+
+    sheet_names = ["hats1.png", "hats2.png", "hats3.png"]
+    out_hats_dir = OUT_DIR / "hats"
+    out_hats_dir.mkdir(parents=True, exist_ok=True)
+
+    face_ref = cv2.cvtColor(base_512[130:220, 230:370], cv2.COLOR_BGR2GRAY)
+
+    print(f"\n[7/7] Нарезка, выравнивание и изоляция 18 головных уборов (hats) из {hats_dir}...")
+    hat_idx = 1
+    for s_name in sheet_names:
+        sheet_path = hats_dir / s_name
+        if not sheet_path.exists():
+            print(f"  ⚠ Пропуск: {s_name} не найден")
+            continue
+        sheet = cv2.imread(str(sheet_path))
+        cw = sheet.shape[1] // 3
+        ch = sheet.shape[0] // 2
+
+        for idx in range(6):
+            r = idx // 3
+            c = idx % 3
+            cell = sheet[r*ch:(r+1)*ch, c*cw:(c+1)*cw]
+
+            # Поиск масштаба и смещения лица
+            best_val, best_s, best_loc = -1, 0.81, (0, 0)
+            scales = np.linspace(0.48, 0.56, 17) if cw > 600 else np.linspace(0.75, 0.90, 16)
+            for s in scales:
+                c_res = cv2.resize(cell, (0, 0), fx=s, fy=s)
+                res = cv2.matchTemplate(cv2.cvtColor(c_res, cv2.COLOR_BGR2GRAY), face_ref, cv2.TM_CCOEFF_NORMED)
+                _, mv, _, ml = cv2.minMaxLoc(res)
+                if mv > best_val:
+                    best_val, best_s, best_loc = mv, s, ml
+
+            tx = 230 - best_loc[0]
+            ty = 130 - best_loc[1]
+
+            c_scaled = cv2.resize(cell, (0, 0), fx=best_s, fy=best_s)
+            sh, sw = c_scaled.shape[:2]
+            aligned = np.full((512, 512, 3), 255, dtype=np.uint8)
+
+            x1, y1 = max(0, tx), max(0, ty)
+            x2, y2 = min(512, tx + sw), min(512, ty + sh)
+            sx1, sy1 = max(0, -tx), max(0, -ty)
+            sx2, sy2 = sx1 + (x2 - x1), sy1 + (y2 - y1)
+            aligned[y1:y2, x1:x2] = c_scaled[sy1:sy2, sx1:sx2]
+
+            bright = np.mean(aligned, axis=2)
+            diff_wb = np.max(aligned, axis=2) - np.min(aligned, axis=2)
+            is_pure_white = (bright > 245) & (diff_wb < 15)
+
+            y_grid, x_grid = np.indices((512, 512))
+            is_hat_zone = (y_grid < 210) & (x_grid >= 130) & (x_grid <= 420)
+            is_below = (y_grid >= 210)
+
+            diff_base = np.max(np.abs(aligned.astype(int) - base_512.astype(int)), axis=2)
+            is_base = (diff_base < 30) & (y_grid >= 140)
+
+            hat_mask = is_hat_zone & ~is_pure_white & ~is_base & ~is_below
+            hat_mask = fill_mask_holes(hat_mask)
+
+            num_l, labels, stats, centroids = cv2.connectedComponentsWithStats(hat_mask.astype(np.uint8))
+            clean_hat = np.zeros_like(hat_mask)
+            for lbl in range(1, num_l):
+                if stats[lbl, cv2.CC_STAT_AREA] > 200:
+                    clean_hat[labels == lbl] = True
+
+            alpha = (clean_hat.astype(np.float32) * 255.0)
+            alpha = cv2.GaussianBlur(alpha, (3, 3), 0.5)
+            alpha[alpha < 25] = 0
+
+            inpaint_mask = ((alpha > 0) & (alpha <= 200)).astype(np.uint8) * 255
+            inpainted = cv2.inpaint(aligned, inpaint_mask, 3, cv2.INPAINT_TELEA)
+
+            edge = (alpha > 0) & (alpha <= 200)
+            final_rgb = aligned.copy()
+            final_rgb[edge] = inpainted[edge]
+
+            final_alpha = alpha.astype(np.uint8)
+            final_rgb[final_alpha == 0] = [0, 0, 0]
+
+            rgba = np.dstack([final_rgb, final_alpha])
+            hat_img = Image.fromarray(rgba, "RGBA")
+
+            out_file = out_hats_dir / f"hats-{hat_idx:02d}.webp"
+            save_webp(hat_img, out_file)
+            save_webp(hat_img, OUT_DIR / f"hats-{hat_idx:02d}.webp")
+            print(f"  ✓ Шапка #{hat_idx:02d}: сохранена в {out_file.name} (512x512, пикселей: {int(np.sum(final_alpha > 20))})")
+            hat_idx += 1
 
 
 def main():
@@ -594,17 +824,23 @@ def main():
     # Сборка 18 пар обуви (shoes)
     build_shoes_assets(bb_arr, base_512)
 
+    # Сборка 18 нарядов одежды (clothes)
+    build_clothes_assets(base_512)
+
+    # Сборка 18 головных уборов (hats)
+    build_hats_assets(base_512)
+
     # Синхронизация с параллельной директорией при наличии
     if ALT_OUT_DIR.parent.parent.exists():
         try:
             ALT_OUT_DIR.mkdir(parents=True, exist_ok=True)
-            for sub in ["", "skins", "shoes"]:
+            for sub in ["", "skins", "shoes", "clothes", "hats"]:
                 src_sub = OUT_DIR / sub
                 dst_sub = ALT_OUT_DIR / sub
                 dst_sub.mkdir(parents=True, exist_ok=True)
                 for f in src_sub.glob("*.webp"):
                     shutil.copy2(f, dst_sub / f.name)
-            print(f"\n✓ Успешно синхронизировано в {ALT_OUT_DIR} (включая skins и shoes)")
+            print(f"\n✓ Успешно синхронизировано в {ALT_OUT_DIR} (включая skins, shoes, clothes, hats)")
         except Exception as e:
             print(f"  (Предупреждение: синхронизация в ALT_OUT_DIR не удалась: {e})")
 

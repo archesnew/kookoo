@@ -171,6 +171,26 @@ export function resolveShoesSrc(shoes?: string | null): string | null {
   return `/assets/pigeon/shoes/shoes-${clean}.webp`;
 }
 
+export function resolveClothesSrc(clothes?: string | null): string | null {
+  if (!clothes || clothes === "none") return null;
+  const clean = clothes.replace(/^clothes-/, "").replace(/^clothing-/, "").trim();
+  const num = parseInt(clean, 10);
+  if (!isNaN(num) && num >= 1 && num <= 18) {
+    return `/assets/pigeon/clothes/clothes-${String(num).padStart(2, "0")}.webp`;
+  }
+  return `/assets/pigeon/clothes/clothes-${clean}.webp`;
+}
+
+export function resolveHatSrc(hat?: string | null): string | null {
+  if (!hat || hat === "none") return null;
+  const clean = hat.replace(/^hats-/, "").replace(/^hat-/, "").trim();
+  const num = parseInt(clean, 10);
+  if (!isNaN(num) && num >= 1 && num <= 18) {
+    return `/assets/pigeon/hats/hats-${String(num).padStart(2, "0")}.webp`;
+  }
+  return `/assets/pigeon/hats/hats-${clean}.webp`;
+}
+
 export function getPigeonSkinColor(
   skin?: string | null,
   rarityIndex: number = 0
@@ -229,6 +249,50 @@ export const DEV_SHOES_OPTIONS = [
   { id: "16", label: "16. Кибер-протекторы (shoes-16)" },
   { id: "17", label: "17. Золотые сникерсы (shoes-17)" },
   { id: "18", label: "18. Алмазные когти (shoes-18)" },
+] as const;
+
+export const DEV_CLOTHES_OPTIONS = [
+  { id: "none", label: "Без одежды (none)" },
+  { id: "01", label: "01. Худи оверсайз (01)" },
+  { id: "02", label: "02. Спортивный бомбер (02)" },
+  { id: "03", label: "03. Джинсовая куртка (03)" },
+  { id: "04", label: "04. Кожаная косуха (04)" },
+  { id: "05", label: "05. Вязаный свитер (05)" },
+  { id: "06", label: "06. Классический смокинг (06)" },
+  { id: "07", label: "07. Пляжная гавайка (07)" },
+  { id: "08", label: "08. Тактический жилет (08)" },
+  { id: "09", label: "09. Неоновый дождевик (09)" },
+  { id: "10", label: "10. Кимоно самурая (10)" },
+  { id: "11", label: "11. Зимний пуховик (11)" },
+  { id: "12", label: "12. Королевская мантия (12)" },
+  { id: "13", label: "13. Рокерская безрукавка (13)" },
+  { id: "14", label: "14. Кибер-бронежилет (14)" },
+  { id: "15", label: "15. Школьный пиджак (15)" },
+  { id: "16", label: "16. Спецовка рабочего (16)" },
+  { id: "17", label: "17. Золотой костюм (17)" },
+  { id: "18", label: "18. Космический скафандр (18)" },
+] as const;
+
+export const DEV_HAT_OPTIONS = [
+  { id: "none", label: "Без шапки (none)" },
+  { id: "01", label: "01. Панама хаки (01)" },
+  { id: "02", label: "02. Бейсболка козырьком назад (02)" },
+  { id: "03", label: "03. Вязаная бини (03)" },
+  { id: "04", label: "04. Королевская корона (04)" },
+  { id: "05", label: "05. Наушники диджея (05)" },
+  { id: "06", label: "06. Цилиндр джентльмена (06)" },
+  { id: "07", label: "07. Соломенное сомбреро (07)" },
+  { id: "08", label: "08. Военный берет (08)" },
+  { id: "09", label: "09. Кибер-визор (09)" },
+  { id: "10", label: "10. Шлем викинга (10)" },
+  { id: "11", label: "11. Шапка-ушанка (11)" },
+  { id: "12", label: "12. Колпак мага (12)" },
+  { id: "13", label: "13. Ободок с рожками (13)" },
+  { id: "14", label: "14. Бандана пирата (14)" },
+  { id: "15", label: "15. Поварской колпак (15)" },
+  { id: "16", label: "16. Защитная каска (16)" },
+  { id: "17", label: "17. Золотой лавровый венок (17)" },
+  { id: "18", label: "18. Космический шлем (18)" },
 ] as const;
 
 const DEV_EYE_OPTIONS = [
@@ -404,14 +468,20 @@ function Pigeon({
               />
             )}
 
-            {/* Слой одежды (z-index: 30) */}
-            {clothingTrait && (
+            {/* Слой одежды (z-index: 30, 18 вариантов) */}
+            {resolveClothesSrc(clothingTrait) && (
               <img
-                src={`/assets/pigeon/clothing-${clothingTrait}.webp`}
+                src={resolveClothesSrc(clothingTrait)!}
                 alt={`Одежда: ${clothingTrait}`}
                 className="pigeon-layer layer-clothing"
                 onError={(e) => {
-                  (e.currentTarget as HTMLElement).style.display = "none";
+                  const target = e.currentTarget as HTMLImageElement;
+                  const clean = (clothingTrait || "").replace(/^clothes-/, "").replace(/^clothing-/, "");
+                  if (!target.src.includes(`clothes-${clean}.webp`)) {
+                    target.src = `/assets/pigeon/clothes-${clean}.webp`;
+                  } else {
+                    target.style.display = "none";
+                  }
                 }}
               />
             )}
@@ -449,14 +519,20 @@ function Pigeon({
               />
             )}
 
-            {/* Слой головного убора (z-index: 60) */}
-            {hatTrait && (
+            {/* Слой головного убора (z-index: 60, 18 вариантов) */}
+            {resolveHatSrc(hatTrait) && (
               <img
-                src={`/assets/pigeon/hat-${hatTrait}.webp`}
+                src={resolveHatSrc(hatTrait)!}
                 alt={`Головной убор: ${hatTrait}`}
                 className="pigeon-layer layer-hat"
                 onError={(e) => {
-                  (e.currentTarget as HTMLElement).style.display = "none";
+                  const target = e.currentTarget as HTMLImageElement;
+                  const clean = (hatTrait || "").replace(/^hats-/, "").replace(/^hat-/, "");
+                  if (!target.src.includes(`hats-${clean}.webp`)) {
+                    target.src = `/assets/pigeon/hats-${clean}.webp`;
+                  } else {
+                    target.style.display = "none";
+                  }
                 }}
               />
             )}
@@ -750,6 +826,8 @@ export default function App() {
   const [previewEyes, setPreviewEyes] = useState<string | null>(null);
   const [previewSkin, setPreviewSkin] = useState<string | null>(null);
   const [previewShoes, setPreviewShoes] = useState<string | null>(null);
+  const [previewClothes, setPreviewClothes] = useState<string | null>(null);
+  const [previewHat, setPreviewHat] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setCounter(Date.now()), 1000);
@@ -793,6 +871,18 @@ export default function App() {
         ? null
         : previewShoes
       : bird?.traits?.shoes;
+  const activeClothes =
+    previewClothes !== null
+      ? previewClothes === "none"
+        ? null
+        : previewClothes
+      : bird?.traits?.clothing;
+  const activeHat =
+    previewHat !== null
+      ? previewHat === "none"
+        ? null
+        : previewHat
+      : bird?.traits?.hat;
   const feeds = bird?.cycleFeeds ?? s.cycleFeeds;
   const startedAt = bird?.cycleStartedAt ?? s.cycleStartedAt;
   const expired =
@@ -973,8 +1063,8 @@ export default function App() {
             eyeTrait={activeEyes}
             skinTrait={activeSkin}
             shoesTrait={activeShoes}
-            clothingTrait={bird?.traits?.clothing}
-            hatTrait={bird?.traits?.hat}
+            clothingTrait={activeClothes}
+            hatTrait={activeHat}
             onFeed={handleFeed}
             cost={cost}
             canFeed={s.seeds >= cost}
@@ -1034,7 +1124,9 @@ export default function App() {
                 {(previewRarity !== null ||
                   previewEyes !== null ||
                   previewSkin !== null ||
-                  previewShoes !== null) && (
+                  previewShoes !== null ||
+                  previewClothes !== null ||
+                  previewHat !== null) && (
                   <button
                     type="button"
                     className="dev-preview-reset"
@@ -1043,6 +1135,8 @@ export default function App() {
                       setPreviewEyes(null);
                       setPreviewSkin(null);
                       setPreviewShoes(null);
+                      setPreviewClothes(null);
+                      setPreviewHat(null);
                     }}
                   >
                     ↺ Сброс
@@ -1096,6 +1190,32 @@ export default function App() {
                     onChange={(e) => setPreviewShoes(e.target.value)}
                   >
                     {DEV_SHOES_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Одежда:</span>
+                  <select
+                    value={previewClothes ?? (activeClothes || "none")}
+                    onChange={(e) => setPreviewClothes(e.target.value)}
+                  >
+                    {DEV_CLOTHES_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Шапка:</span>
+                  <select
+                    value={previewHat ?? (activeHat || "none")}
+                    onChange={(e) => setPreviewHat(e.target.value)}
+                  >
+                    {DEV_HAT_OPTIONS.map((opt) => (
                       <option key={opt.id} value={opt.id}>
                         {opt.label}
                       </option>
