@@ -242,6 +242,49 @@ button:disabled {
   display: grid;
   place-items: center;
   overflow: hidden;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform 0.14s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.pigeon-stage:active {
+  transform: scale(0.975);
+}
+
+.pigeon-stage:focus-visible {
+  outline: 2px solid #ffc629;
+  outline-offset: -4px;
+  border-radius: 24px;
+}
+
+.pigeon-tap-hint {
+  position: absolute;
+  bottom: 8px;
+  z-index: 5;
+  background: rgba(16, 9, 25, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #d1c4df;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 4px 12px;
+  border-radius: 12px;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  animation: pulse-hint 2.5s ease-in-out infinite;
+}
+
+@keyframes pulse-hint {
+  0%, 100% { opacity: 0.85; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-2px); }
 }
 
 .pigeon-halo {
@@ -360,65 +403,107 @@ button:disabled {
   animation: rise .9s ease-out both;
 }
 
-/* ─── Шкалы опыта и яйца ─── */
-.bird-meters {
+/* ─── Единая плашка опыта и шагов до яйца ─── */
+.unified-progress-card {
   flex: none;
   width: 100%;
-  padding: 0 2px 8px;
+  padding: 10px 14px;
+  background: rgba(26, 17, 38, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  margin: 4px 0 6px;
+  backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.meter-row,
-.egg-row {
+.progress-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.progress-metric {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.progress-metric.right {
+  justify-content: flex-end;
+}
+
+.metric-label {
   font-size: 9px;
+  font-weight: 700;
   letter-spacing: .08em;
   color: #a89caf;
 }
 
-.meter-row b,
-.egg-row b {
-  font-size: 10px;
+.metric-value {
+  font-size: 11px;
   color: #f5f3fa;
-  letter-spacing: 0;
 }
 
-.meter-row i,
-.egg-row i {
+.metric-value b {
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.metric-value i {
   font-style: normal;
   color: #8f8398;
-  font-weight: 500;
+  font-size: 10px;
 }
 
-.meter {
-  height: 4px;
-  background: #30243a;
-  border-radius: 9px;
+.unified-xp-bar {
+  height: 5px;
+  background: #281a33;
+  border-radius: 10px;
   overflow: hidden;
-  margin: 4px 0 6px;
 }
 
-.meter i {
+.unified-xp-bar i {
   display: block;
   width: 0;
   height: 100%;
   background: linear-gradient(90deg, #8f31e9, #d693ff);
   border-radius: inherit;
-  transition: width .35s;
+  transition: width .35s ease;
 }
 
-.egg-row {
-  margin-top: 2px;
+.egg-steps-track {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+  margin-top: 1px;
 }
 
-.egg-meter {
-  height: 3px;
-  margin-bottom: 0;
+.egg-step-segment {
+  flex: 1;
+  height: 6px;
+  border-radius: 4px;
+  background: #251630;
+  position: relative;
+  overflow: hidden;
+  transition: background 0.25s, box-shadow 0.25s;
 }
 
-.egg-meter i {
-  background: linear-gradient(90deg, #f0ac26, #ffdf6f);
+.egg-step-segment.active {
+  background: linear-gradient(90deg, #ffc629, #ffd86b);
+  box-shadow: 0 0 8px rgba(255, 198, 41, 0.5);
+}
+
+.egg-step-segment .step-glow {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.4) 0%, transparent 100%);
+  opacity: 0;
+}
+
+.egg-step-segment.active .step-glow {
+  opacity: 1;
 }
 
 /* ─── Dev-only Preview Panel ─── */
@@ -494,56 +579,66 @@ button:disabled {
   border-color: #ffc629;
 }
 
-/* ─── Карточка действий ─── */
-.action-card {
+/* ─── Компактная плашка статуса кормления ─── */
+.feed-status-card {
   flex: none;
-  padding: 0;
+  width: 100%;
+  margin: 2px 0 6px;
 }
 
-.feed-summary {
+.feed-status-summary {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin: 0 4px 8px;
+  padding: 10px 14px;
+  background: rgba(23, 14, 33, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  backdrop-filter: blur(8px);
 }
 
-.feed-summary > div {
+.cost-box,
+.reset-box {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.feed-summary small {
-  font-size: 8px;
-  color: #a499ad;
-  letter-spacing: .12em;
-  font-weight: 600;
+.reset-box {
+  text-align: right;
+  align-items: flex-end;
 }
 
-.feed-summary strong {
+.cost-box small,
+.reset-box small {
+  font-size: 8px;
+  color: #a499ad;
+  letter-spacing: .1em;
+  font-weight: 700;
+}
+
+.cost-box strong {
   display: flex;
   align-items: center;
   gap: 5px;
   font-size: 15px;
+  color: #fff;
 }
 
-.feed-summary strong .seed-icon {
+.cost-box strong .seed-icon {
   width: 16px;
   height: 16px;
+  color: #ffc629;
 }
 
-.feed-summary strong i {
+.cost-box strong i {
   font-style: normal;
   font-size: 9px;
   color: #b2a8ba;
   font-weight: 500;
 }
 
-.reset {
-  text-align: right;
-}
-
-.reset strong {
+.reset-box strong {
   font-size: 13px;
   letter-spacing: .06em;
   font-variant-numeric: tabular-nums;
@@ -551,7 +646,7 @@ button:disabled {
 }
 
 .crumbs-wrapper {
-  margin-bottom: 8px;
+  margin-top: 6px;
 }
 
 .crumbs-btn {
@@ -585,44 +680,6 @@ button:disabled {
   text-align: center;
   font-size: 11px;
   color: #bfaecb;
-}
-
-.feed-btn {
-  width: 100%;
-  height: 56px;
-  border-radius: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: linear-gradient(105deg, #a43bf3, #7c27d3);
-  box-shadow: 0 0 22px #9b36f566, inset 0 1px #fff4;
-  border: 1px solid #d393ff88;
-  font-size: 17px;
-  font-weight: 800;
-  transition: transform .16s, filter .16s;
-}
-
-.feed-btn:active {
-  transform: scale(.985);
-  filter: brightness(1.12);
-}
-
-.feed-btn:disabled {
-  opacity: .45;
-  box-shadow: none;
-}
-
-.feed-btn .seed-icon {
-  color: #ffe079;
-  width: 22px;
-  height: 22px;
-}
-
-.feed-btn b {
-  margin-left: 2px;
-  color: #ffdf84;
-  font-size: 15px;
 }
 
 /* ─── Нижнее меню (5 вкладок) ─── */
@@ -1090,9 +1147,8 @@ button:disabled {
   .bird-title h1 {
     font-size: 24px;
   }
-  .feed-btn {
-    height: 52px;
-    font-size: 16px;
+  .feed-status-summary {
+    padding: 8px 10px;
   }
 }
 
@@ -1133,12 +1189,12 @@ button:disabled {
   .pigeon-stage {
     margin-top: -8px;
   }
-  .bird-meters {
-    padding-bottom: 4px;
+  .unified-progress-card {
+    padding: 8px 10px;
+    margin: 2px 0 4px;
   }
-  .feed-btn {
-    height: 48px;
-    font-size: 15px;
+  .feed-status-summary {
+    padding: 6px 10px;
   }
   .bottom-nav {
     height: 62px;

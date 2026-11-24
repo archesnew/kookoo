@@ -556,4 +556,92 @@ describe("KOO KOO Economy v0.2", () => {
       expect(migratedAgain.birds[1].traits).toEqual(b2.traits);
     });
   });
+
+  /* ───────── 7. Механика тапа по голубю и единая плашка шагов до яйца ───────── */
+  describe("Тап-кормление по голубю и единый прогресс шагов до яйца", () => {
+    it("проверяет пошаговое кормление по тапу: инкремент опыта, расход семечек и цикл шагов 0→1→2→3→4→яйцо", () => {
+      let game = initialGame();
+      const startSeeds = game.seeds;
+      const now = Date.now();
+
+      // Начальный шаг до яйца: 0 / 5
+      expect(game.totalFeeds % ECONOMY.eggEveryFeeds).toBe(0);
+      expect(game.eggs).toHaveLength(0);
+
+      // Шаг 1 (тап 1)
+      game = feed(game, now);
+      expect(game.totalFeeds % ECONOMY.eggEveryFeeds).toBe(1);
+      expect(game.xp).toBe(10);
+      expect(game.seeds).toBe(startSeeds - feedCost(0, 0));
+      expect(game.eggs).toHaveLength(0); // яйца ещё нет
+
+      // Шаг 2 (тап 2)
+      game = feed(game, now);
+      expect(game.totalFeeds % ECONOMY.eggEveryFeeds).toBe(2);
+      expect(game.xp).toBe(20);
+      expect(game.eggs).toHaveLength(0);
+
+      // Шаг 3 (тап 3)
+      game = feed(game, now);
+      expect(game.totalFeeds % ECONOMY.eggEveryFeeds).toBe(3);
+      expect(game.xp).toBe(30);
+      expect(game.eggs).toHaveLength(0);
+
+      // Шаг 4 (тап 4) — предпоследний шаг перед яйцом
+      game = feed(game, now);
+      expect(game.totalFeeds % ECONOMY.eggEveryFeeds).toBe(4);
+      expect(game.xp).toBe(40);
+      expect(game.eggs).toHaveLength(0);
+
+      // Шаг 5 (тап 5) — выпадает яйцо, счётчик шагов сбрасывается в 0
+      game = feed(game, now);
+      expect(game.totalFeeds % ECONOMY.eggEveryFeeds).toBe(0);
+      expect(game.xp).toBe(50);
+      expect(game.eggs).toHaveLength(1);
+      expect(game.eggs[0].level).toBeGreaterThanOrEqual(1);
+    });
+
+    it("гарантирует отсутствие спойлера уровня яйца: яйцо создаётся только при наступлении 5-го шага", () => {
+      const game = initialGame();
+      const now = Date.now();
+
+      // На шагах 1..4 список яиц пуст — игрок видит только число шагов (например, 3/5)
+      let current = game;
+      for (let step = 1; step <= 4; step++) {
+        current = feed(current, now);
+        expect(current.eggs).toHaveLength(0);
+        expect(current.totalFeeds % ECONOMY.eggEveryFeeds).toBe(step);
+      }
+
+      // Только на 5-м кормлении генерируется яйцо
+      current = feed(current, now);
+      expect(current.eggs).toHaveLength(1);
+    });
+
+    it("проверяет невозможность кормления при seeds < cost и работу страховки крошек", () => {
+      let game = initialGame();
+      const now = Date.now();
+
+      // Устанавливаем баланс семечек в 0
+      game = { ...game, seeds: 0 };
+      const cost = feedCost(game.rarity, game.cycleFeeds);
+      expect(game.seeds).toBeLessThan(cost);
+
+      // Кормление не срабатывает при нулевом балансе
+      const afterFeedAttempt = feed(game, now);
+      expect(afterFeedAttempt).toBe(game); // возвращает то же состояние
+      expect(afterFeedAttempt.seeds).toBe(0);
+
+      // Проверяем доступность сбора крошек
+      expect(canCollectCrumbs(game, now)).toBe(true);
+      game = collectCrumbs(game, now);
+      expect(game.seeds).toBe(ECONOMY.crumbsReward);
+      expect(game.seeds).toBeGreaterThanOrEqual(cost);
+
+      // Теперь кормление по тапу успешно работает
+      const afterCrumbsFeed = feed(game, now);
+      expect(afterCrumbsFeed.seeds).toBe(ECONOMY.crumbsReward - cost);
+      expect(afterCrumbsFeed.totalFeeds).toBe(1);
+    });
+  });
 });

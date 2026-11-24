@@ -102,10 +102,16 @@ function Pigeon({
   rarityIndex,
   feedEffect,
   eyeTrait = "grumpy",
+  onFeed,
+  cost,
+  canFeed = true,
 }: {
   rarityIndex: number;
   feedEffect: number;
   eyeTrait?: string;
+  onFeed?: () => void;
+  cost?: number;
+  canFeed?: boolean;
 }) {
   const [imgError, setImgError] = useState(false);
   const raritySlug = RARITY_SLUGS[rarityIndex] || "common";
@@ -116,11 +122,18 @@ function Pigeon({
   }, [rarityIndex, eyeTrait]);
 
   return (
-    <div
+    <button
+      type="button"
       className={`pigeon-stage rarity-${rarityIndex} ${
         feedEffect ? "fed" : ""
-      }`}
+      } ${!canFeed ? "cant-feed" : ""}`}
       key={feedEffect}
+      onClick={onFeed}
+      aria-label={
+        canFeed
+          ? `Покормить голубя (стоимость: ${cost ?? 1} семечек)`
+          : `Недостаточно семечек для кормления (${cost ?? 1} семечек)`
+      }
     >
       <div className="pigeon-halo" />
       <div className="pigeon-orbit orbit-one" />
@@ -391,7 +404,10 @@ function Pigeon({
       <span className="temp-art-label">ВРЕМЕННЫЙ КОНЦЕПТ</span>
     </>
   )}
-</div>
+  <span className="pigeon-tap-hint" aria-hidden="true">
+    Тапни, чтобы покормить
+  </span>
+</button>
 );
 }
 
@@ -444,6 +460,16 @@ export default function App() {
     : "08:00:00";
 
   const progress = s.totalFeeds % ECONOMY.eggEveryFeeds;
+
+  const handleFeed = () => {
+    if (s.seeds < cost) {
+      s.select(null);
+      useGame.setState({ notice: "Недостаточно семечек для кормления!" });
+      return;
+    }
+    s.feed();
+    navigator.vibrate?.(18);
+  };
 
   // Проверка страховки от нуля («Собрать крошки»)
   const canCrumbs = canCollectCrumbs(s, counter);
@@ -538,31 +564,51 @@ export default function App() {
             rarityIndex={activeRarity}
             feedEffect={s.feedEffect}
             eyeTrait={activeEyes}
+            onFeed={handleFeed}
+            cost={cost}
+            canFeed={s.seeds >= cost}
           />
 
-          <div className="bird-meters">
-            <div className="meter-row">
-              <span>ОПЫТ</span>
-              <b>
-                {s.xp} <i>/ 100 XP</i>
-              </b>
+          <div className="unified-progress-card">
+            <div className="progress-card-header">
+              <div className="progress-metric">
+                <span className="metric-label">ОПЫТ</span>
+                <span className="metric-value">
+                  <b>{s.xp % 100}</b> <i>/ 100 XP</i>
+                </span>
+              </div>
+              <div className="progress-metric right">
+                <span className="metric-label">ДО ЯЙЦА</span>
+                <span className="metric-value">
+                  <b>{progress}</b> <i>/ {ECONOMY.eggEveryFeeds}</i>
+                </span>
+              </div>
             </div>
-            <div className="meter">
+
+            <div
+              className="unified-xp-bar"
+              role="progressbar"
+              aria-valuenow={s.xp % 100}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Опыт текущего уровня"
+            >
               <i style={{ width: `${s.xp % 100}%` }} />
             </div>
-            <div className="egg-row">
-              <span>Следующее яйцо</span>
-              <b>
-                {progress}
-                <i> / {ECONOMY.eggEveryFeeds}</i>
-              </b>
-            </div>
-            <div className="meter egg-meter">
-              <i
-                style={{
-                  width: `${(progress * 100) / ECONOMY.eggEveryFeeds}%`,
-                }}
-              />
+
+            <div
+              className="egg-steps-track"
+              role="group"
+              aria-label={`Шагов до яйца: ${progress} из ${ECONOMY.eggEveryFeeds}`}
+            >
+              {Array.from({ length: ECONOMY.eggEveryFeeds }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className={`egg-step-segment ${idx < progress ? "active" : ""}`}
+                >
+                  <span className="step-glow" />
+                </div>
+              ))}
             </div>
           </div>
 
@@ -614,17 +660,17 @@ export default function App() {
             </div>
           )}
 
-          <section className="action-card">
-            <div className="feed-summary">
-              <div>
-                <small>КОРМЛЕНИЕ</small>
+          <section className="feed-status-card">
+            <div className="feed-status-summary">
+              <div className="cost-box">
+                <small>СТОИМОСТЬ КОРМЛЕНИЯ</small>
                 <strong>
                   <SeedIcon />
-                  {cost}
+                  <span>{cost}</span>
                   <i>семечек</i>
                 </strong>
               </div>
-              <div className="reset">
+              <div className="reset-box">
                 <small>СБРОС ЦЕНЫ (8 Ч)</small>
                 <strong>{timer}</strong>
               </div>
@@ -634,6 +680,7 @@ export default function App() {
               <div className="crumbs-wrapper">
                 {canCrumbs ? (
                   <button
+                    type="button"
                     className="crumbs-btn"
                     onClick={() => {
                       s.collectCrumbs();
@@ -649,18 +696,6 @@ export default function App() {
                 ) : null}
               </div>
             )}
-
-            <button
-              className="feed-btn"
-              disabled={s.seeds < cost}
-              onClick={() => {
-                s.feed();
-                navigator.vibrate?.(18);
-              }}
-            >
-              <SeedIcon />
-              Покормить <b>{cost}</b>
-            </button>
           </section>
         </section>
       ) : (
