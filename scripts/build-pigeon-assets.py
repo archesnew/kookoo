@@ -353,14 +353,31 @@ def build_skins_assets(bb_mask: np.ndarray):
         for idx in range(6):
             r = idx // 3
             c = idx % 3
-            cell = sheet[r*896:(r+1)*896, c*800:(c+1)*800]
+            cell_bgr = sheet[r*896:(r+1)*896, c*800:(c+1)*800]
+            cell = cv2.cvtColor(cell_bgr, cv2.COLOR_BGR2RGB)
 
-            # Выделение силуэта птицы в ячейке
-            cell_fg = ((cell.mean(axis=2) < 235) & (np.arange(896)[:, None] < 855)).astype(np.uint8)
+            # Выделение силуэта птицы через внешний floodFill (не пробивает дыры в белых перьях!)
+            bright_c = cell.mean(axis=2)
+            diff_wb_c = cell.max(axis=2) - cell.min(axis=2)
+            is_white_c = ((bright_c > 251) & (diff_wb_c < 6)).astype(np.uint8) * 255
+            is_white_c[845:, :] = 255
+            flood_c = np.zeros((898, 802), dtype=np.uint8)
+            for pt in [(0, 0), (799, 0), (0, 895), (799, 895)]:
+                cv2.floodFill(is_white_c, flood_c, pt, 128)
+            cell_fg = (is_white_c != 128)
+            cell_fg[850:, :] = False
+            # Заливка любых внутренних отверстий и выбор главного компонента
+            cell_fg = fill_mask_holes(cell_fg)
+            nl_c, lab_c, st_c, _ = cv2.connectedComponentsWithStats(cell_fg.astype(np.uint8))
+            if nl_c > 1:
+                main_c = np.argmax(st_c[1:, cv2.CC_STAT_AREA]) + 1
+                cell_fg = (lab_c == main_c)
+            cell_fg_u8 = cell_fg.astype(np.uint8)
+
             y, x = np.where(cell_fg)
             ymin, ymax, xmin, xmax = y.min(), y.max(), x.min(), x.max()
             crop_rgb = cell[ymin:ymax, xmin:xmax]
-            crop_fg = cell_fg[ymin:ymax, xmin:xmax]
+            crop_fg = cell_fg_u8[ymin:ymax, xmin:xmax]
 
             # Масштабирование до высоты базового голубя (392 px)
             scale = 392.0 / (ymax - ymin)
@@ -378,22 +395,31 @@ def build_skins_assets(bb_mask: np.ndarray):
 
             canvas_rgb[py:py+th, px:px+tw] = res_rgb
 
-            # Расчёт альфа-канала с плавным антиалиасингом
-            dist_white = np.sqrt(np.sum((255.0 - res_rgb)**2, axis=-1))
-            t = np.clip((dist_white - 8.0) / (25.0 - 8.0), 0.0, 1.0)
-            alpha_patch = res_fg * t
-            canvas_alpha[py:py+th, px:px+tw] = alpha_patch
+            # Расчёт альфа-канала: внутри силуэта альфа = 1.0, по внешней границе мягкий антиалиасинг
+            fg_bool = np.zeros((512, 512), dtype=bool)
+            fg_bool[py:py+th, px:px+tw] = (res_fg > 0)
 
-            # Мягкое сглаживание контура альфы
-            canvas_alpha = cv2.GaussianBlur(canvas_alpha, (3, 3), 0.5)
+            # Отсечение тени на полу под лапами (y >= 442): оставляем только лапы/когти, убираем серый/белый овал стола
+            y_grid_s = np.arange(512)[:, None]
+            bright_s = canvas_rgb.mean(axis=-1)
+            diff_wb_s = canvas_rgb.max(axis=-1) - canvas_rgb.min(axis=-1)
+            bb_dilated = cv2.dilate(bb_mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))) > 0
+            is_floor_shadow = (y_grid_s >= 440) & (diff_wb_s < 28) & (bright_s > 155) & (~bb_dilated)
+            is_floor_shadow |= (y_grid_s >= 452) & (diff_wb_s < 24) & (bright_s > 165)
+            is_floor_shadow |= (y_grid_s >= 456) & (~bb_dilated)
+            fg_bool[is_floor_shadow] = False
+
+            dist_out = cv2.distanceTransform(fg_bool.astype(np.uint8), cv2.DIST_L2, 3)
+            dist_white = np.sqrt(np.sum((255.0 - canvas_rgb) ** 2, axis=-1))
+            t_edge = np.clip((dist_white - 8.0) / (25.0 - 8.0), 0.0, 1.0)
+
+            # Внутри ядра (dist_out > 2.5) альфа строго 1.0 даже для чисто-белых перьев!
+            alpha_raw = np.where(fg_bool, np.where(dist_out > 2.5, 1.0, t_edge), 0.0)
+            canvas_alpha = cv2.GaussianBlur(alpha_raw.astype(np.float32), (3, 3), 0.5)
+            canvas_alpha[~fg_bool] = 0.0
             canvas_alpha[canvas_alpha < 0.08] = 0.0
 
-            # Отсечение паразитных бликов пола в самом низу
-            is_bottom = np.arange(512)[:, None] > 465
-            canvas_alpha[is_bottom & (canvas_rgb.mean(axis=-1) > 170)] = 0.0
-
             # Де-фринжинг: впечатывание истинных цветов оперения на полупрозрачные края
-            core = (canvas_alpha > 0.90).astype(np.uint8)
             inpaint_mask = ((canvas_alpha > 0) & (canvas_alpha <= 0.90)).astype(np.uint8) * 255
             inpainted = cv2.inpaint(np.clip(canvas_rgb, 0, 255).astype(np.uint8), inpaint_mask, 5, cv2.INPAINT_TELEA)
 
@@ -499,12 +525,14 @@ def build_shoes_assets(bb_arr: np.ndarray, base_512: np.ndarray):
             is_shoe_cand = (diff_base > 20) | is_base_claw
             is_shoe_region = (y_grid >= 385) & (y_grid <= 508) & (x_grid >= 150) & (x_grid <= 415)
 
-            is_bg = (bright > 248) & (diff_wb < 12)
-            is_floor = (y_grid > 480) & (diff_wb <= 8) & (bright > 185) & (bright <= 248)
+            is_bg = (bright > 245) & (diff_wb < 14)
+            # Тень пола: нейтральный серый/белый градиент под подошвой (y > 445 слева или y > 460 везде)
+            is_floor = ((y_grid > 445) & (diff_wb <= 16) & (bright > 170) & (diff_base < 40)) | ((y_grid > 460) & (diff_wb <= 16) & (bright > 175))
 
             raw_shoe = is_shoe_region & is_shoe_cand & ~is_bg & ~is_floor
 
-            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+            # Убираем тонкие тени пола, соединённые с внешним фоном внизу
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
             closed = cv2.morphologyEx(raw_shoe.astype(np.uint8), cv2.MORPH_CLOSE, kernel)
             solid = fill_mask_holes(closed > 0)
 
@@ -518,12 +546,13 @@ def build_shoes_assets(bb_arr: np.ndarray, base_512: np.ndarray):
             alpha = cv2.GaussianBlur(alpha, (3, 3), 0.5)
             alpha[alpha < 25] = 0
 
-            # Де-фринжинг краёв обуви
+            # Де-фринжинг краёв обуви + перевод BGR -> RGB
+            aligned_rgb = cv2.cvtColor(aligned, cv2.COLOR_BGR2RGB)
             edge = (alpha > 0) & (alpha <= 200)
             inpaint_mask = edge.astype(np.uint8) * 255
-            inpainted = cv2.inpaint(aligned, inpaint_mask, 3, cv2.INPAINT_TELEA)
+            inpainted = cv2.inpaint(aligned_rgb, inpaint_mask, 3, cv2.INPAINT_TELEA)
 
-            final_rgb = aligned.copy()
+            final_rgb = aligned_rgb.copy()
             final_rgb[edge] = inpainted[edge]
 
             final_alpha = alpha.astype(np.uint8)
@@ -608,7 +637,7 @@ def build_clothes_assets(base_512: np.ndarray):
             diff_wb = np.max(aligned, axis=2) - np.min(aligned, axis=2)
 
             # Внешний белый фон через floodFill из углов (не вырезает белые принты/худи внутри одежды)
-            is_white_cand = (bright > 238) & (diff_wb < 18)
+            is_white_cand = (bright > 235) & (diff_wb < 18)
             inv = is_white_cand.astype(np.uint8) * 255
             flood = np.zeros((514, 514), dtype=np.uint8)
             for pt in [(0, 0), (511, 0), (0, 511), (511, 511)]:
@@ -616,31 +645,42 @@ def build_clothes_assets(base_512: np.ndarray):
             is_exterior_bg = (inv == 0) & is_white_cand
 
             y_grid, x_grid = np.indices((512, 512))
-            is_head = (y_grid < 178) & (x_grid >= 210) & (x_grid <= 360)
-            is_floor = (y_grid >= 468) & (diff_wb <= 10) & (bright > 180)
-            is_cloth_zone = (y_grid >= 170) & (y_grid <= 472) & (x_grid >= 60) & (x_grid <= 430)
-            is_orange_claw = (y_grid > 415) & (aligned[:, :, 2] > 160) & (aligned[:, :, 1] > 60) & (aligned[:, :, 0] < 70)
+            # Вычитание базового голубя (хвост слева, голая шея, лапы внизу и тень пола)
+            diff_base = np.max(np.abs(aligned.astype(int) - base_512.astype(int)), axis=2)
 
-            cloth_cand = is_cloth_zone & ~is_exterior_bg & ~is_head & ~is_floor & ~is_orange_claw
+            is_head = (y_grid < 175)
+            is_floor = (y_grid >= 438)
+            is_cloth_zone = (y_grid >= 170) & (y_grid <= 438) & (x_grid >= 145) & (x_grid <= 430)
 
-            # Заполнение внутренних отверстий
-            cloth_mask = fill_mask_holes(cloth_cand)
+            # Выделяем только пиксели одежды, отличающиеся от базового голубя
+            is_garment_diff = (diff_base > 26)
+            kernel_cl = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+            garment_closed = cv2.morphologyEx((is_garment_diff & is_cloth_zone & ~is_exterior_bg).astype(np.uint8), cv2.MORPH_CLOSE, kernel_cl) > 0
+            garment_solid = fill_mask_holes(garment_closed)
 
-            num_l, labels, stats, centroids = cv2.connectedComponentsWithStats(cloth_mask.astype(np.uint8))
-            clean_clothes = np.zeros_like(cloth_mask)
-            for lbl in range(1, num_l):
-                if stats[lbl, cv2.CC_STAT_AREA] > 800:
-                    clean_clothes[labels == lbl] = True
+            # Строгое отсечение голого хвоста (x < 178), если там нет ткани (diff_base < 35), и оранжевых лап внизу
+            is_tail_feather = (x_grid < 178) & (diff_base < 35)
+            is_orange_claw = (y_grid > 395) & (aligned[:, :, 2] > 155) & (aligned[:, :, 2] - aligned[:, :, 0] > 45)
+            is_leg_gap = (y_grid > 405) & (diff_base < 36)
+
+            cloth_cand = garment_solid & is_cloth_zone & ~is_exterior_bg & ~is_head & ~is_floor & ~is_tail_feather & ~is_orange_claw & ~is_leg_gap
+
+            num_l, labels, stats, centroids = cv2.connectedComponentsWithStats(cloth_cand.astype(np.uint8))
+            clean_clothes = np.zeros_like(cloth_cand)
+            if num_l > 1:
+                main_lbl = np.argmax(stats[1:, cv2.CC_STAT_AREA]) + 1
+                clean_clothes[labels == main_lbl] = True
 
             alpha = (clean_clothes.astype(np.float32) * 255.0)
             alpha = cv2.GaussianBlur(alpha, (3, 3), 0.5)
             alpha[alpha < 25] = 0
 
+            aligned_rgb = cv2.cvtColor(aligned, cv2.COLOR_BGR2RGB)
             edge = (alpha > 0) & (alpha <= 200)
             inpaint_mask = edge.astype(np.uint8) * 255
-            inpainted = cv2.inpaint(aligned, inpaint_mask, 3, cv2.INPAINT_TELEA)
+            inpainted = cv2.inpaint(aligned_rgb, inpaint_mask, 3, cv2.INPAINT_TELEA)
 
-            final_rgb = aligned.copy()
+            final_rgb = aligned_rgb.copy()
             final_rgb[edge] = inpainted[edge]
 
             final_alpha = alpha.astype(np.uint8)
@@ -723,34 +763,47 @@ def build_hats_assets(base_512: np.ndarray):
 
             bright = np.mean(aligned, axis=2)
             diff_wb = np.max(aligned, axis=2) - np.min(aligned, axis=2)
-            is_pure_white = (bright > 245) & (diff_wb < 15)
+            is_pure_white = (bright > 242) & (diff_wb < 16)
 
             y_grid, x_grid = np.indices((512, 512))
-            # Строгое отсечение лица/глаз/клюва:
-            is_face = (y_grid >= 135) & (x_grid >= 225) & (x_grid <= 360)
-            is_hat_zone = (y_grid <= 165) & (x_grid >= 120) & (x_grid <= 420) & ~is_face
+            # Строгое отсечение лица/глаз/клюва, но сохранение очков авиатора сверху (y < 132) и ушанок по бокам
+            is_face = (y_grid >= 132) & (x_grid >= 210) & (x_grid <= 365)
+            is_lower_back = (y_grid >= 165) & (x_grid < 180)
+            is_hat_zone = (y_grid <= 215) & (x_grid >= 120) & (x_grid <= 420) & ~is_face & ~is_lower_back
 
             diff_base = np.max(np.abs(aligned.astype(int) - base_512.astype(int)), axis=2)
-            is_base = (diff_base < 30) & (y_grid >= 115)
+            # В зоне головы и затылка отсекаем сине-фиолетовые перья шеи/затылка эталонного голубя
+            is_purple_neck = (y_grid >= 148) & (x_grid >= 175) & (x_grid <= 220) & (aligned[:, :, 0].astype(int) > aligned[:, :, 2].astype(int) + 5) & (bright < 170)
+            is_neck_back = (y_grid >= 132) & (x_grid >= 175) & (x_grid <= 215) & (diff_base < 60)
+            is_base = ((diff_base < 42) & (y_grid >= 88)) | is_neck_back | is_purple_neck
 
-            hat_mask = is_hat_zone & ~is_pure_white & ~is_base
-            hat_mask = fill_mask_holes(hat_mask)
+            hat_cand = is_hat_zone & ~is_pure_white & ~is_base
+            # Убираем тонкие остаточные полоски кожи лба и крыльев
+            kernel_h = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+            hat_opened = cv2.morphologyEx(hat_cand.astype(np.uint8), cv2.MORPH_OPEN, kernel_h) > 0
+            hat_mask = fill_mask_holes(hat_opened) & ~is_base & ~is_face & ~is_lower_back
 
             num_l, labels, stats, centroids = cv2.connectedComponentsWithStats(hat_mask.astype(np.uint8))
             clean_hat = np.zeros_like(hat_mask)
-            for lbl in range(1, num_l):
-                if stats[lbl, cv2.CC_STAT_AREA] > 150:
-                    clean_hat[labels == lbl] = True
+            if num_l > 1:
+                # Берём только компоненты самой шапки (максимальный компонент + близкие детали сверху, напр. бубенцы/нимб)
+                main_lbl = np.argmax(stats[1:, cv2.CC_STAT_AREA]) + 1
+                for lbl in range(1, num_l):
+                    area = stats[lbl, cv2.CC_STAT_AREA]
+                    cx, cy = centroids[lbl]
+                    if lbl == main_lbl or (area > 250 and cy < 155 and cx > 165):
+                        clean_hat[labels == lbl] = True
 
             alpha = (clean_hat.astype(np.float32) * 255.0)
             alpha = cv2.GaussianBlur(alpha, (3, 3), 0.5)
             alpha[alpha < 25] = 0
 
+            aligned_rgb = cv2.cvtColor(aligned, cv2.COLOR_BGR2RGB)
             edge = (alpha > 0) & (alpha <= 200)
             inpaint_mask = edge.astype(np.uint8) * 255
-            inpainted = cv2.inpaint(aligned, inpaint_mask, 3, cv2.INPAINT_TELEA)
+            inpainted = cv2.inpaint(aligned_rgb, inpaint_mask, 3, cv2.INPAINT_TELEA)
 
-            final_rgb = aligned.copy()
+            final_rgb = aligned_rgb.copy()
             final_rgb[edge] = inpainted[edge]
 
             final_alpha = alpha.astype(np.uint8)
