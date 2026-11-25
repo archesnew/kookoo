@@ -141,7 +141,7 @@ export const PIGEON_SKIN_COLORS: Record<string, string> = {
   "cherry-blossom": "#5e5a67", "skin-18": "#5e5a67", "18": "#5e5a67",
 };
 
-const ASSET_V = "?v=7";
+const ASSET_V = "?v=8";
 
 export function resolveSkinSrc(skin?: string | null): string {
   if (!skin || skin === "common" || skin === "default") {

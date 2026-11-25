@@ -525,8 +525,14 @@ def build_shoes_assets(bb_arr: np.ndarray, base_512: np.ndarray):
             is_shoe_region = (y_grid >= 385) & (y_grid <= 508) & (x_grid >= 150) & (x_grid <= 415)
 
             is_bg = (bright > 245) & (diff_wb < 14)
-            # Тень пола: нейтральный серый/белый градиент под подошвой (y > 445 слева или y > 460 везде)
-            is_floor = ((y_grid > 445) & (diff_wb <= 16) & (bright > 170) & (diff_base < 40)) | ((y_grid > 460) & (diff_wb <= 16) & (bright > 175))
+            # Тень пола: нейтральный серый/белый градиент под подошвой и слева от пятки
+            is_shadow_cand = (y_grid >= 438) & (diff_wb <= 20) & (bright > 145)
+            sh_flood = is_shadow_cand.astype(np.uint8) * 255
+            fl_s = np.zeros((514, 514), dtype=np.uint8)
+            for pt in [(145, 455), (145, 480), (415, 455), (415, 480), (256, 510)]:
+                if sh_flood[pt[1], pt[0]] > 0:
+                    cv2.floodFill(sh_flood, fl_s, pt, 128)
+            is_floor = (sh_flood == 128) | ((y_grid >= 440) & (x_grid < 208) & (diff_wb <= 22) & (bright > 140)) | ((y_grid > 465) & (diff_wb <= 16) & (bright > 170))
 
             raw_shoe = is_shoe_region & is_shoe_cand & ~is_bg & ~is_floor
 

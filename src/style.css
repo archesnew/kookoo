@@ -589,8 +589,9 @@ button:disabled {
 .pigeon-layers {
   position: relative;
   z-index: 6;
-  width: min(88vw, 340px);
-  height: min(88vw, 340px);
+  width: min(88vw, 330px);
+  height: min(88vw, 330px);
+  margin-bottom: 24px;
   max-height: 100%;
   max-width: 100%;
   aspect-ratio: 1 / 1;
@@ -664,7 +665,7 @@ button:disabled {
 
 .pigeon-tap-hint {
   position: absolute;
-  bottom: 8px;
+  bottom: 4px;
   z-index: 7;
   background: rgba(16, 9, 25, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.14);
