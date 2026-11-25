@@ -398,7 +398,7 @@ button:disabled {
   --rarity: #aeb5c2;
   position: relative;
   flex: 1 0 auto;
-  min-height: 280px;
+  min-height: 350px;
   width: 100%;
   max-width: 100%;
   display: flex;
@@ -590,8 +590,8 @@ button:disabled {
 .pigeon-layers {
   position: relative;
   z-index: 6;
-  width: auto;
-  height: min(78vw, 290px, 100%);
+  width: min(86vw, 350px);
+  height: min(86vw, 350px);
   max-height: 100%;
   max-width: 100%;
   aspect-ratio: 1 / 1;
@@ -1702,17 +1702,17 @@ button:disabled {
 
 @media (max-height: 860px) {
   .pigeon-stage-container {
-    min-height: 268px;
+    min-height: 315px;
   }
   .pigeon-layers {
-    width: min(68vw, 240px);
-    height: min(68vw, 240px);
+    width: min(82vw, 310px);
+    height: min(82vw, 310px);
   }
 }
 
 @media (max-height: 760px) {
   .pigeon-stage-container {
-    min-height: 244px;
+    min-height: 285px;
   }
   .app {
     padding-top: calc(6px + env(safe-area-inset-top, 0px));
@@ -1733,8 +1733,8 @@ button:disabled {
     padding-bottom: 24px;
   }
   .pigeon-layers {
-    width: min(64vw, 220px);
-    height: min(64vw, 220px);
+    width: min(78vw, 280px);
+    height: min(78vw, 280px);
   }
   .circular-podium {
     bottom: 14px;

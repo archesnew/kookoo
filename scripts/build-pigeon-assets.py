@@ -131,30 +131,40 @@ def align_to_reference_ecc(
         return cv2.resize(src_rgba, TARGET_SIZE, interpolation=cv2.INTER_LINEAR)
 
     if mask_mode == "lower_body":
-        # Игнорируем верхнюю шапку при оценке масштаба и центра
-        y_ref_cut = int(ys_ref.min() + (ys_ref.max() - ys_ref.min()) * 0.35)
-        y_src_cut = int(ys_src.min() + (ys_src.max() - ys_src.min()) * 0.35)
-        m_ref = (ref_alpha > 0.5) & (np.arange(TARGET_SIZE[1])[:, None] >= y_ref_cut)
-        m_src = (src_alpha > 0.5) & (np.arange(src_alpha.shape[0])[:, None] >= y_src_cut)
+        # Игнорируем верхнюю шапку: оцениваем масштаб по ширине туловища (хвост-грудь) и якоримся по низу лап
+        y_bot_ref = int(ys_ref.max())
+        y_bot_src = int(ys_src.max())
+        # Нижние ~60% тела эталона (ниже головы/шапки) имеют инвариантную ширину туловища
+        m_ref = (ref_alpha > 0.5) & (np.arange(TARGET_SIZE[1])[:, None] >= int(ys_ref.min() + (y_bot_ref - ys_ref.min()) * 0.42))
         yr, xr = np.where(m_ref)
+        w_ref = max(1, int(xr.max() - xr.min()))
+
+        # В исходнике берём нижнюю половину от y_bot_src вверх на ~0.65 ширины кадра (без шапки)
+        y_cut_src = max(0, y_bot_src - int(src_alpha.shape[0] * 0.48))
+        m_src = (src_alpha > 0.5) & (np.arange(src_alpha.shape[0])[:, None] >= y_cut_src)
         ys, xs = np.where(m_src)
-        h_ref = max(1, int(yr.max() - yr.min()))
-        h_src = max(1, int(ys.max() - ys.min()))
-        scale_init = h_ref / h_src
-        cx_ref, cy_ref = float(xr.mean()), float(yr.mean())
-        cx_src, cy_src = float(xs.mean()), float(ys.mean())
+        w_src = max(1, int(xs.max() - xs.min()))
+
+        scale_init = w_ref / w_src
+        cx_ref = float(xr.mean())
+        cx_src = float(xs.mean())
+        inv_s = 1.0 / scale_init
+        # Якорим низ лап (y_bot_src <-> y_bot_ref) и горизонтальный центр тела
+        M = np.array([
+            [inv_s, 0.0, cx_src - inv_s * cx_ref],
+            [0.0, inv_s, float(y_bot_src) - inv_s * float(y_bot_ref)],
+        ], dtype=np.float32)
     else:
         h_ref = max(1, int(ys_ref.max() - ys_ref.min()))
         h_src = max(1, int(ys_src.max() - ys_src.min()))
         scale_init = h_ref / h_src
         cx_ref, cy_ref = float(xs_ref.mean()), float(ys_ref.mean())
         cx_src, cy_src = float(xs_src.mean()), float(ys_src.mean())
-
-    inv_s = 1.0 / scale_init
-    M = np.array([
-        [inv_s, 0.0, cx_src - inv_s * cx_ref],
-        [0.0, inv_s, cy_src - inv_s * cy_ref],
-    ], dtype=np.float32)
+        inv_s = 1.0 / scale_init
+        M = np.array([
+            [inv_s, 0.0, cx_src - inv_s * cx_ref],
+            [0.0, inv_s, cy_src - inv_s * cy_ref],
+        ], dtype=np.float32)
 
     tmpl = cv2.GaussianBlur(ref_alpha, (7, 7), 1.5)
     inp = cv2.GaussianBlur(src_alpha, (7, 7), 1.5)
@@ -165,7 +175,7 @@ def align_to_reference_ecc(
         input_mask[45:370, :] = 255
     elif mask_mode == "lower_body":
         input_mask = np.zeros(TARGET_SIZE, dtype=np.uint8)
-        input_mask[190:440, :] = 255
+        input_mask[155:476, :] = 255
     elif mask_mode == "head_and_feet":
         input_mask = np.zeros(TARGET_SIZE, dtype=np.uint8)
         input_mask[45:175, :] = 255
@@ -432,17 +442,19 @@ def extract_accessory_diff(
     elif slot == "hats":
         # Изолируем головной убор сверху: мягко убираем эллиптическую область лица (глаза/клюв), без прямых углов
         y_hat_max = y_min_ref + int(h_ref * 0.36)
-        cy_face = y_min_ref + int(h_ref * 0.24)
+        cy_face = y_min_ref + int(h_ref * 0.23)
         cx_face = int(xs_ref.mean() + (xs_ref.max() - xs_ref.min()) * 0.14)
-        rx_face = max(1, int((xs_ref.max() - xs_ref.min()) * 0.24))
-        ry_face = max(1, int(h_ref * 0.10))
+        rx_face = max(1, int((xs_ref.max() - xs_ref.min()) * 0.25))
+        ry_face = max(1, int(h_ref * 0.12))
         is_face_ellipse = (((x_grid - cx_face) / rx_face) ** 2 + ((y_grid - cy_face) / ry_face) ** 2) <= 1.0
         is_face_area = ref_body & is_face_ellipse
+        # Убираем утечку клюва и подбородка справа под глазами
+        is_beak_chin = (x_grid >= int(xs_ref.mean())) & (y_grid >= y_min_ref + int(h_ref * 0.18))
         is_head_skin = ref_body & (diff < 45.0) & (y_grid >= y_min_ref + int(h_ref * 0.05))
-        raw_hat = (alpha_src > 40) & (y_grid <= y_hat_max) & ((~ref_body) | (diff > 32.0)) & (~is_face_area) & (~is_head_skin)
+        raw_hat = (alpha_src > 40) & (y_grid <= y_hat_max) & ((~ref_body) | (diff > 32.0)) & (~is_face_area) & (~is_beak_chin) & (~is_head_skin)
         opened = cv2.morphologyEx(raw_hat.astype(np.uint8), cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
         closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))) > 0
-        closed[is_face_area] = False
+        closed[is_face_area | is_beak_chin] = False
         num_l, labels, stats, centroids = cv2.connectedComponentsWithStats(closed.astype(np.uint8))
         keep = np.zeros_like(closed)
         if num_l > 1:

@@ -123,7 +123,7 @@ export const PIGEON_SKIN_COLORS: Record<string, string> = {
   "iridescent-oil-slick": "#5e5a67", "skin-18": "#5e5a67", "18": "#5e5a67",
 };
 
-const ASSET_V = "?v=13";
+const ASSET_V = "?v=14";
 
 export function resolveSkinSrc(skin?: string | null): string {
   if (!skin || skin === "common" || skin === "default") {
@@ -432,17 +432,6 @@ function Pigeon({
                 }
               }}
             />
-
-            {/* Слой шеи (z-index: 15, для common не выводится) */}
-            {raritySlug !== "common" && (
-              <img
-                key={`neck-${raritySlug}`}
-                src={`/assets/pigeon/neck-${raritySlug}.webp`}
-                alt={`Шея: ${rarity[rarityIndex]}`}
-                className="pigeon-layer layer-neck"
-                onError={() => setImgError(true)}
-              />
-            )}
 
             {/* Слой обуви (z-index: 20, 18 вариантов) */}
             {resolveShoesSrc(shoesTrait) && (
@@ -1157,19 +1146,6 @@ export default function App() {
                 )}
               </div>
               <div className="dev-preview-controls">
-                <label>
-                  <span>Шея:</span>
-                  <select
-                    value={activeRarity}
-                    onChange={(e) => setPreviewRarity(Number(e.target.value))}
-                  >
-                    {RARITY_SLUGS.map((slug, idx) => (
-                      <option key={slug} value={idx}>
-                        {rarity[idx]} ({slug})
-                      </option>
-                    ))}
-                  </select>
-                </label>
                 <label>
                   <span>Взгляд:</span>
                   <select
