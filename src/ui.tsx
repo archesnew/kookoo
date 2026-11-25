@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useGame } from "./store";
+import { SKIN_SLUGS } from "./cosmetics";
 import {
   ECONOMY,
   feedCost,
@@ -91,26 +92,7 @@ const EYE_TRAIT_MAP: Record<string, string> = {
   "10": "crazy",
 };
 
-export const CUSTOM_SKIN_SLUGS = [
-  "wedding-white",
-  "sandy-cappuccino",
-  "obsidian-black",
-  "peacock-emerald",
-  "golden-gilded",
-  "cosmic-holographic",
-  "fire-lava",
-  "pink-flamingo",
-  "cyberpunk-neon",
-  "blue-frost-ice",
-  "spotted-leopard",
-  "iridescent-oil-slick",
-  "zebra-sketch",
-  "firework-neon-splash",
-  "pumpkin-orange",
-  "shimmering-ruby-quartz",
-  "patchwork-plush",
-  "cherry-blossom",
-] as const;
+export const CUSTOM_SKIN_SLUGS = SKIN_SLUGS;
 
 export const PIGEON_SKIN_COLORS: Record<string, string> = {
   // Базовые по 6 редкостям
@@ -120,28 +102,28 @@ export const PIGEON_SKIN_COLORS: Record<string, string> = {
   epic: "#bd67fa",
   legendary: "#ffc629",
   mythic: "#fa7bdf",
-  // 18 кастомных окрасов (точный цвет оперения головы для естественного тонирования век)
+  // 18 кастомных окрасов в едином порядке 01–18 (цвет оперения головы для тонирования век)
   "wedding-white": "#c0b6be", "skin-01": "#c0b6be", "01": "#c0b6be",
   "sandy-cappuccino": "#b88868", "skin-02": "#b88868", "02": "#b88868",
   "obsidian-black": "#5a535f", "skin-03": "#5a535f", "03": "#5a535f",
   "peacock-emerald": "#3a8b78", "skin-04": "#3a8b78", "04": "#3a8b78",
   "golden-gilded": "#ab8a53", "skin-05": "#ab8a53", "05": "#ab8a53",
   "cosmic-holographic": "#615687", "skin-06": "#615687", "06": "#615687",
-  "fire-lava": "#a7a6a6", "skin-07": "#a7a6a6", "07": "#a7a6a6",
-  "pink-flamingo": "#545179", "skin-08": "#545179", "08": "#545179",
-  "cyberpunk-neon": "#c26b37", "skin-09": "#c26b37", "09": "#c26b37",
-  "blue-frost-ice": "#9d354e", "skin-10": "#9d354e", "10": "#9d354e",
-  "spotted-leopard": "#7b889a", "skin-11": "#7b889a", "11": "#7b889a",
-  "iridescent-oil-slick": "#dbb5ba", "skin-12": "#dbb5ba", "12": "#dbb5ba",
-  "zebra-sketch": "#553c41", "skin-13": "#553c41", "13": "#553c41",
-  "firework-neon-splash": "#d58f9e", "skin-14": "#d58f9e", "14": "#d58f9e",
-  "pumpkin-orange": "#4e4d79", "skin-15": "#4e4d79", "15": "#4e4d79",
-  "shimmering-ruby-quartz": "#88b4c9", "skin-16": "#88b4c9", "16": "#88b4c9",
-  "patchwork-plush": "#92744e", "skin-17": "#92744e", "17": "#92744e",
-  "cherry-blossom": "#5e5a67", "skin-18": "#5e5a67", "18": "#5e5a67",
+  "zebra-sketch": "#a7a6a6", "skin-07": "#a7a6a6", "07": "#a7a6a6",
+  "firework-neon-splash": "#545179", "skin-08": "#545179", "08": "#545179",
+  "pumpkin-orange": "#c26b37", "skin-09": "#c26b37", "09": "#c26b37",
+  "shimmering-ruby-quartz": "#9d354e", "skin-10": "#9d354e", "10": "#9d354e",
+  "patchwork-plush": "#7b889a", "skin-11": "#7b889a", "11": "#7b889a",
+  "cherry-blossom": "#dbb5ba", "skin-12": "#dbb5ba", "12": "#dbb5ba",
+  "fire-lava": "#553c41", "skin-13": "#553c41", "13": "#553c41",
+  "pink-flamingo": "#d58f9e", "skin-14": "#d58f9e", "14": "#d58f9e",
+  "cyberpunk-neon": "#4e4d79", "skin-15": "#4e4d79", "15": "#4e4d79",
+  "blue-frost-ice": "#88b4c9", "skin-16": "#88b4c9", "16": "#88b4c9",
+  "spotted-leopard": "#92744e", "skin-17": "#92744e", "17": "#92744e",
+  "iridescent-oil-slick": "#5e5a67", "skin-18": "#5e5a67", "18": "#5e5a67",
 };
 
-const ASSET_V = "?v=10";
+const ASSET_V = "?v=11";
 
 export function resolveSkinSrc(skin?: string | null): string {
   if (!skin || skin === "common" || skin === "default") {
@@ -492,21 +474,35 @@ function Pigeon({
               />
             )}
 
-            {/* Слой век и эмоций (z-index: 40, динамическое тонирование кодом под окрас) */}
+            {/* Слой век и эмоций (z-index: 40, grayscale + цветной слой по маске в multiply) */}
             {resolvedEye !== "grumpy" && (
-              <img
+              <div
                 key={`eyelids-${resolvedEye}-${skinTrait || raritySlug}`}
-                src={`/assets/pigeon/eyelids-${resolvedEye}.webp`}
-                alt={`Веки: ${resolvedEye}`}
                 className="pigeon-layer layer-eyelids"
                 style={{
+                  backgroundColor: pigeon.skinColor,
+                  WebkitMaskImage: `url(/assets/pigeon/eyelids-${resolvedEye}.webp${ASSET_V})`,
+                  maskImage: `url(/assets/pigeon/eyelids-${resolvedEye}.webp${ASSET_V})`,
+                  WebkitMaskSize: "contain",
+                  maskSize: "contain",
+                  WebkitMaskRepeat: "no-repeat",
+                  maskRepeat: "no-repeat",
+                  WebkitMaskPosition: "center",
+                  maskPosition: "center",
                   mixBlendMode: "multiply",
-                  filter: `brightness(1.35) drop-shadow(0 0 0 ${pigeon.skinColor})`,
                 }}
-                onError={(e) => {
-                  (e.currentTarget as HTMLElement).style.display = "none";
-                }}
-              />
+              >
+                <img
+                  src={`/assets/pigeon/eyelids-${resolvedEye}.webp${ASSET_V}`}
+                  alt={`Веки: ${resolvedEye}`}
+                  className="pigeon-layer"
+                  style={{ mixBlendMode: "multiply", opacity: 0.85 }}
+                  onError={(e) => {
+                    const parent = e.currentTarget.parentElement;
+                    if (parent) parent.style.display = "none";
+                  }}
+                />
+              </div>
             )}
 
             {/* Слой зрачков и белков глаз (z-index: 50, чистые белки без тонирования) */}

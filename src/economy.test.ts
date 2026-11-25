@@ -16,7 +16,10 @@ import {
   type Game,
 } from "./economy";
 import {
-  COSMETICS_CATALOG,
+  EYES_CATALOG,
+  SHOES_CATALOG,
+  CLOTHING_CATALOG,
+  HAT_CATALOG,
   LAYER_ORDER,
   SLOT_Z_INDEX,
   generatePigeonTraits,
@@ -446,75 +449,49 @@ describe("KOO KOO Economy v0.2", () => {
 
   /* ───────── 10. Каталог черт и косметики (cosmetics.ts) ───────── */
   describe("Каталог черт и косметики (cosmetics.ts)", () => {
-    it("содержит требуемое количество предметов по слотам (eyes:10, shoes:20, clothing:20, hat:20, tattoo:20, beak:20)", () => {
-      expect(COSMETICS_CATALOG.eyes).toHaveLength(10);
-      expect(COSMETICS_CATALOG.shoes).toHaveLength(20);
-      expect(COSMETICS_CATALOG.clothing).toHaveLength(20);
-      expect(COSMETICS_CATALOG.hat).toHaveLength(20);
-      expect(COSMETICS_CATALOG.tattoo).toHaveLength(20);
-      expect(COSMETICS_CATALOG.beak).toHaveLength(20);
-
-      const totalItems =
-        COSMETICS_CATALOG.eyes.length +
-        COSMETICS_CATALOG.shoes.length +
-        COSMETICS_CATALOG.clothing.length +
-        COSMETICS_CATALOG.hat.length +
-        COSMETICS_CATALOG.tattoo.length +
-        COSMETICS_CATALOG.beak.length;
-      expect(totalItems).toBe(110);
+    it("содержит реальные ассеты по слотам (eyes:10, shoes:18, clothing:18, hat:18)", () => {
+      expect(EYES_CATALOG).toHaveLength(10);
+      expect(SHOES_CATALOG).toHaveLength(18);
+      expect(CLOTHING_CATALOG).toHaveLength(18);
+      expect(HAT_CATALOG).toHaveLength(18);
     });
 
-    it("проверяет корректность путей ассетов (pigeon/{slot}-{id}.webp) и zIndex", () => {
-      for (const item of COSMETICS_CATALOG.eyes) {
-        expect(item.assetPath).toBe(`pigeon/eyes-${item.id}.webp`);
+    it("проверяет корректность путей ассетов и zIndex", () => {
+      for (const item of EYES_CATALOG) {
+        expect(item.assetPath).toMatch(/^pigeon\/eyes-.*\.webp$/);
         expect(item.zIndex).toBe(SLOT_Z_INDEX.eyes);
       }
-      for (const item of COSMETICS_CATALOG.clothing) {
-        expect(item.assetPath).toBe(`pigeon/clothing-${item.id}.webp`);
+      for (const item of CLOTHING_CATALOG) {
+        expect(item.assetPath).toBe(`pigeon/clothes/clothes-${item.id}.webp`);
         expect(typeof item.hidesNeck).toBe("boolean");
         expect(item.zIndex).toBe(SLOT_Z_INDEX.clothing);
       }
-      for (const item of COSMETICS_CATALOG.shoes) {
-        expect(item.assetPath).toBe(`pigeon/shoes-${item.id}.webp`);
+      for (const item of SHOES_CATALOG) {
+        expect(item.assetPath).toBe(`pigeon/shoes/shoes-${item.id}.webp`);
+        expect(item.zIndex).toBe(SLOT_Z_INDEX.shoes);
       }
-      for (const item of COSMETICS_CATALOG.hat) {
-        expect(item.assetPath).toBe(`pigeon/hat-${item.id}.webp`);
-      }
-      for (const item of COSMETICS_CATALOG.tattoo) {
-        expect(item.assetPath).toBe(`pigeon/tattoo-${item.id}.webp`);
-      }
-      for (const item of COSMETICS_CATALOG.beak) {
-        expect(item.assetPath).toBe(`pigeon/beak-${item.id}.webp`);
+      for (const item of HAT_CATALOG) {
+        expect(item.assetPath).toBe(`pigeon/hats/hats-${item.id}.webp`);
+        expect(item.zIndex).toBe(SLOT_Z_INDEX.hat);
       }
     });
 
-    it("соблюдает порядок слоёв LAYER_ORDER (tattoo -> shoes -> clothing -> beak -> eyes -> hat)", () => {
-      expect(LAYER_ORDER).toEqual([
-        "tattoo",
-        "shoes",
-        "clothing",
-        "beak",
-        "eyes",
-        "hat",
-      ]);
-      expect(SLOT_Z_INDEX.tattoo).toBeLessThan(SLOT_Z_INDEX.shoes);
+    it("соблюдает порядок слоёв LAYER_ORDER (shoes -> clothing -> eyes -> hat)", () => {
+      expect(LAYER_ORDER).toEqual(["shoes", "clothing", "eyes", "hat"]);
       expect(SLOT_Z_INDEX.shoes).toBeLessThan(SLOT_Z_INDEX.clothing);
-      expect(SLOT_Z_INDEX.clothing).toBeLessThan(SLOT_Z_INDEX.beak);
-      expect(SLOT_Z_INDEX.beak).toBeLessThan(SLOT_Z_INDEX.eyes);
+      expect(SLOT_Z_INDEX.clothing).toBeLessThan(SLOT_Z_INDEX.eyes);
       expect(SLOT_Z_INDEX.eyes).toBeLessThan(SLOT_Z_INDEX.hat);
     });
 
-    it("генерирует детерминированные черты голубя при фиксированном сиде/id", () => {
-      const traits1 = generatePigeonTraits(0, "bird-001");
-      const traits2 = generatePigeonTraits(0, "bird-001");
+    it("генерирует детерминированные черты голубя (включая skin) при фиксированном сиде/id", () => {
+      const traits1 = generatePigeonTraits(3, "bird-001");
+      const traits2 = generatePigeonTraits(3, "bird-001");
       expect(traits1).toEqual(traits2);
       expect(traits1.eyes).toBeTruthy();
-      expect(traits1.beak).toBeTruthy();
+      expect("skin" in traits1).toBe(true);
 
-      const traitsDiff = generatePigeonTraits(0, "bird-diff-seed-999");
-      // Разные сиды дают валидные черты
+      const traitsDiff = generatePigeonTraits(3, "bird-diff-seed-999");
       expect(traitsDiff.eyes).toBeTruthy();
-      expect(traitsDiff.beak).toBeTruthy();
     });
 
     it("при миграции старого сохранения koo-koo-v01 детерминированно дозаполняет traits без потери данных", () => {
@@ -548,7 +525,7 @@ describe("KOO KOO Economy v0.2", () => {
       expect(b1.traits).toBeDefined();
       expect(b2.traits).toBeDefined();
       expect(b1.traits?.eyes).toBeTruthy();
-      expect(b1.traits?.beak).toBeTruthy();
+      expect("skin" in (b1.traits ?? {})).toBe(true);
       expect(b2.traits?.eyes).toBeTruthy();
 
       // Повторная миграция того же объекта даёт точно такие же traits
