@@ -66,7 +66,8 @@ def test_accessories_and_layers_present():
             p = OUT_DIR / slot / f"{prefix}-{i:02d}.webp"
             assert p.exists(), f"Отсутствует файл: {p}"
             im = cv2.imread(str(p), cv2.IMREAD_UNCHANGED)
-            assert im.shape == (512, 512, 4), f"Неверный размер {p.name}: {im.shape}"
+            expected_shape = (576, 512, 4) if slot == "hats" else (512, 512, 4)
+            assert im.shape == expected_shape, f"Неверный размер {p.name}: {im.shape}"
             vis_px = int(np.sum(im[:, :, 3] > 20))
             assert vis_px > 1500, f"Слой {p.name} слишком пустой ({vis_px} px)"
 

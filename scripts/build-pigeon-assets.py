@@ -54,12 +54,12 @@ EYES_MAPPING = {
 }
 
 
-def save_rgba_webp(rgba: np.ndarray, out_path: Path):
-    """Сохраняет 512x512 RGBA массив в WebP без порчи матовой альфы от rembg."""
+def save_rgba_webp(rgba: np.ndarray, out_path: Path, size: tuple[int, int] = TARGET_SIZE):
+    """Сохраняет RGBA массив в WebP без порчи матовой альфы от rembg."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
     img = Image.fromarray(np.clip(rgba, 0, 255).astype(np.uint8), "RGBA")
-    if img.size != TARGET_SIZE:
-        img = img.resize(TARGET_SIZE, Image.Resampling.LANCZOS)
+    if img.size != size:
+        img = img.resize(size, Image.Resampling.LANCZOS)
     img.save(str(out_path), "WEBP", quality=95, method=4)
 
 
@@ -469,27 +469,28 @@ def extract_accessory_diff(
     return out
 
 
-# Параметры посадки 18 отдельных PNG-шапок на голову эталона 512x512 (cx=301, макушка y=39, брови y=75)
-# (target_w, cx, y_bottom)
+# Параметры посадки 18 отдельных PNG-шапок на голову эталона (cx=301, макушка y=39, брови y=75)
+# Используется расширенный холст 512x576 (64px запас сверху), чтобы высокие шапки были в натуральную величину и не обрезались
+HAT_HEADROOM = 64
 STANDALONE_HAT_FIT: dict[int, tuple[int, int, int]] = {
-    1: (168, 297, 102),  # Чёрная панама
-    2: (162, 310, 98),   # Жёлтая кепка
-    3: (128, 299, 84),   # Золотая корона
-    4: (176, 290, 152),  # Шапка-ушанка
-    5: (162, 308, 96),   # Красная бейсболка
-    6: (172, 276, 128),  # Красная повязка
-    7: (188, 290, 102),  # Шляпа волшебника
-    8: (162, 298, 96),   # Кусок пиццы
-    9: (132, 300, 102),  # Кроличьи ушки
-    10: (126, 300, 52),  # Золотой нимб
-    11: (162, 309, 96),  # Неоновый козырёк
-    12: (142, 294, 96),  # Красная шапка с помпоном
-    13: (154, 308, 96),  # Кепка с пропеллером
-    14: (146, 300, 94),  # Колпак повара
-    15: (184, 298, 98),  # Пиратская треуголка
-    16: (170, 299, 98),  # Зелёная панама-лягушка
-    17: (184, 294, 118), # Колпак шута
-    18: (172, 290, 142), # Шлем авиатора
+    1: (176, 297, 102),  # Чёрная панама
+    2: (168, 310, 98),   # Жёлтая кепка
+    3: (142, 299, 86),   # Золотая корона
+    4: (186, 290, 152),  # Шапка-ушанка
+    5: (168, 308, 96),   # Красная бейсболка
+    6: (178, 278, 128),  # Красная повязка
+    7: (194, 290, 104),  # Шляпа волшебника
+    8: (166, 298, 98),   # Кусок пиццы
+    9: (148, 300, 100),  # Кроличьи ушки
+    10: (132, 300, 50),  # Золотой нимб
+    11: (166, 309, 96),  # Неоновый козырёк
+    12: (156, 294, 98),  # Красная шапка с помпоном
+    13: (166, 308, 96),  # Кепка с пропеллером
+    14: (168, 298, 98),  # Колпак повара
+    15: (188, 298, 98),  # Пиратская треуголка
+    16: (176, 299, 98),  # Зелёная панама-лягушка
+    17: (190, 294, 120), # Колпак шута
+    18: (176, 290, 142), # Шлем авиатора
 }
 
 
@@ -535,33 +536,34 @@ def build_standalone_hats_assets(session):
                 crop = seg_rgba[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
                 ch_c, cw_c = crop.shape[:2]
 
-                target_w, cx_dst, y_bot_dst = STANDALONE_HAT_FIT.get(item_idx, (166, 300, 96))
+                target_w, cx_dst, y_bot_dst = STANDALONE_HAT_FIT.get(item_idx, (168, 300, 98))
                 scale = target_w / max(1, cw_c)
                 new_w = max(1, int(round(cw_c * scale)))
                 new_h = max(1, int(round(ch_c * scale)))
-                # Никогда не обрезаем макушку шапки по y=0: при нехватке места сверху аккуратно масштабируем под доступную высоту
-                if y_bot_dst - new_h < 2:
-                    scale = max(0.1, (y_bot_dst - 2) / max(1, ch_c))
+                # Запас HAT_HEADROOM (64px сверху) позволяет не сжимать высокие шапки
+                if (y_bot_dst + HAT_HEADROOM) - new_h < 2:
+                    scale = max(0.1, (y_bot_dst + HAT_HEADROOM - 2) / max(1, ch_c))
                     new_w = max(1, int(round(cw_c * scale)))
                     new_h = max(1, int(round(ch_c * scale)))
                 resized = cv2.resize(crop, (new_w, new_h), interpolation=cv2.INTER_AREA if scale < 1.0 else cv2.INTER_CUBIC)
 
-                canvas = np.zeros((TARGET_SIZE[1], TARGET_SIZE[0], 4), dtype=np.uint8)
+                hat_size = (TARGET_SIZE[0], TARGET_SIZE[1] + HAT_HEADROOM)
+                canvas = np.zeros((hat_size[1], hat_size[0], 4), dtype=np.uint8)
                 x_dst0 = int(round(cx_dst - new_w / 2.0))
-                y_dst0 = int(round(y_bot_dst - new_h))
+                y_dst0 = int(round(y_bot_dst + HAT_HEADROOM - new_h))
 
-                # Клиппинг по границам холста 512x512
+                # Клиппинг по границам холста 512x576
                 sx0 = max(0, -x_dst0)
                 sy0 = max(0, -y_dst0)
                 dx0 = max(0, x_dst0)
                 dy0 = max(0, y_dst0)
-                dx1 = min(TARGET_SIZE[0], x_dst0 + new_w)
-                dy1 = min(TARGET_SIZE[1], y_dst0 + new_h)
+                dx1 = min(hat_size[0], x_dst0 + new_w)
+                dy1 = min(hat_size[1], y_dst0 + new_h)
                 if dx1 > dx0 and dy1 > dy0:
                     canvas[dy0:dy1, dx0:dx1] = resized[sy0:sy0 + (dy1 - dy0), sx0:sx0 + (dx1 - dx0)]
 
                 out_file = out_slot_dir / f"hats-{item_idx:02d}.webp"
-                save_rgba_webp(canvas, out_file)
+                save_rgba_webp(canvas, out_file, size=hat_size)
                 px = int(np.sum(canvas[:, :, 3] > 20))
                 print(f"  ✓ hats #{item_idx:02d} ({'RGBA' if has_alpha else 'rembg'}): {out_file.name} (пикселей: {px})")
                 item_idx += 1

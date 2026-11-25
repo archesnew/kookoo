@@ -638,6 +638,8 @@ button:disabled {
 
 .pigeon-layer.layer-hat {
   z-index: 60;
+  top: -12.5%;
+  height: 112.5%;
 }
 
 .pigeon-layer.layer-burst {
