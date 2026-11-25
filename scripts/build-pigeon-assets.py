@@ -469,6 +469,104 @@ def extract_accessory_diff(
     return out
 
 
+# Параметры посадки 18 отдельных PNG-шапок на голову эталона 512x512 (cx=301, макушка y=39, брови y=75)
+# (target_w, cx, y_bottom)
+STANDALONE_HAT_FIT: dict[int, tuple[int, int, int]] = {
+    1: (168, 297, 102),  # Чёрная панама
+    2: (162, 310, 98),   # Жёлтая кепка
+    3: (128, 299, 84),   # Золотая корона
+    4: (176, 290, 152),  # Шапка-ушанка
+    5: (162, 308, 96),   # Красная бейсболка
+    6: (172, 276, 128),  # Красная повязка
+    7: (188, 290, 102),  # Шляпа волшебника
+    8: (162, 298, 96),   # Кусок пиццы
+    9: (132, 300, 102),  # Кроличьи ушки
+    10: (126, 300, 52),  # Золотой нимб
+    11: (162, 309, 96),  # Неоновый козырёк
+    12: (142, 294, 96),  # Красная шапка с помпоном
+    13: (154, 308, 96),  # Кепка с пропеллером
+    14: (146, 300, 94),  # Колпак повара
+    15: (184, 298, 98),  # Пиратская треуголка
+    16: (170, 299, 98),  # Зелёная панама-лягушка
+    17: (184, 294, 118), # Колпак шута
+    18: (172, 290, 142), # Шлем авиатора
+}
+
+
+def build_standalone_hats_assets(session):
+    """Вырезает и сажает на голову эталона 18 отдельных головных уборов из PNG-листов."""
+    src_dir = RAW_DIR / "hats"
+    out_slot_dir = OUT_DIR / "hats"
+    out_slot_dir.mkdir(parents=True, exist_ok=True)
+    print(f"\n[7/7] Посадка 18 отдельных PNG-шапок из {src_dir}...")
+
+    item_idx = 1
+    for sheet_idx in (1, 2, 3):
+        sheet_path = src_dir / f"hats-raw-{sheet_idx}.png"
+        if not sheet_path.exists():
+            print(f"  ⚠ Пропуск: {sheet_path.name} не найден")
+            continue
+        raw = np.array(Image.open(sheet_path))
+        has_alpha = raw.ndim == 3 and raw.shape[2] == 4
+        h, w = raw.shape[:2]
+        cw, ch = w / 3.0, h / 2.0
+        for row in range(2):
+            for col in range(3):
+                y0, y1 = int(round(row * ch)), int(round((row + 1) * ch))
+                x0, x1 = int(round(col * cw)), int(round((col + 1) * cw))
+                cell = raw[y0:y1, x0:x1]
+                if has_alpha:
+                    seg_rgba = cell.copy()
+                else:
+                    seg_rgba = segment_subject(cell[:, :, :3], session)
+
+                # Убираем мелкий мусор/осколки на краях ячейки (area < 80)
+                num_l, labels, stats, _ = cv2.connectedComponentsWithStats((seg_rgba[:, :, 3] > 20).astype(np.uint8))
+                if num_l > 1:
+                    valid = np.zeros(seg_rgba.shape[:2], dtype=bool)
+                    for lbl in range(1, num_l):
+                        if stats[lbl, cv2.CC_STAT_AREA] >= 80:
+                            valid[labels == lbl] = True
+                    seg_rgba[~valid, 3] = 0
+
+                ys, xs = np.where(seg_rgba[:, :, 3] > 20)
+                if len(ys) == 0:
+                    continue
+                crop = seg_rgba[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+                ch_c, cw_c = crop.shape[:2]
+
+                target_w, cx_dst, y_bot_dst = STANDALONE_HAT_FIT.get(item_idx, (166, 300, 96))
+                scale = target_w / max(1, cw_c)
+                new_w = max(1, int(round(cw_c * scale)))
+                new_h = max(1, int(round(ch_c * scale)))
+                # Никогда не обрезаем макушку шапки по y=0: при нехватке места сверху аккуратно масштабируем под доступную высоту
+                if y_bot_dst - new_h < 2:
+                    scale = max(0.1, (y_bot_dst - 2) / max(1, ch_c))
+                    new_w = max(1, int(round(cw_c * scale)))
+                    new_h = max(1, int(round(ch_c * scale)))
+                resized = cv2.resize(crop, (new_w, new_h), interpolation=cv2.INTER_AREA if scale < 1.0 else cv2.INTER_CUBIC)
+
+                canvas = np.zeros((TARGET_SIZE[1], TARGET_SIZE[0], 4), dtype=np.uint8)
+                x_dst0 = int(round(cx_dst - new_w / 2.0))
+                y_dst0 = int(round(y_bot_dst - new_h))
+
+                # Клиппинг по границам холста 512x512
+                sx0 = max(0, -x_dst0)
+                sy0 = max(0, -y_dst0)
+                dx0 = max(0, x_dst0)
+                dy0 = max(0, y_dst0)
+                dx1 = min(TARGET_SIZE[0], x_dst0 + new_w)
+                dy1 = min(TARGET_SIZE[1], y_dst0 + new_h)
+                if dx1 > dx0 and dy1 > dy0:
+                    canvas[dy0:dy1, dx0:dx1] = resized[sy0:sy0 + (dy1 - dy0), sx0:sx0 + (dx1 - dx0)]
+
+                out_file = out_slot_dir / f"hats-{item_idx:02d}.webp"
+                save_rgba_webp(canvas, out_file)
+                px = int(np.sum(canvas[:, :, 3] > 20))
+                print(f"  ✓ hats #{item_idx:02d} ({'RGBA' if has_alpha else 'rembg'}): {out_file.name} (пикселей: {px})")
+                item_idx += 1
+
+
 def build_accessories_assets(
     slot: str,
     sheet_names: list[str],
@@ -615,7 +713,10 @@ def main():
     # 5–7. Обувь, одежда, головные уборы
     build_accessories_assets("shoes", ["shoes1.jpg", "shoes2.jpg", "shoes3.jpg"], ref_rgba, session, "[5/7]")
     build_accessories_assets("clothes", ["clothes1.jpg", "clothes2.png", "clothes3.png"], ref_rgba, session, "[6/7]")
-    build_accessories_assets("hats", ["hats1.png", "hats2.png", "hats3.png"], ref_rgba, session, "[7/7]")
+    if (RAW_DIR / "hats" / "hats-raw-1.png").exists():
+        build_standalone_hats_assets(session)
+    else:
+        build_accessories_assets("hats", ["hats1.png", "hats2.png", "hats3.png"], ref_rgba, session, "[7/7]")
 
     total_files = len(list(OUT_DIR.rglob("*.webp")))
     print(f"\nГотово! Всего WebP файлов в {OUT_DIR}: {total_files}")
