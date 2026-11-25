@@ -141,7 +141,7 @@ export const PIGEON_SKIN_COLORS: Record<string, string> = {
   "cherry-blossom": "#5e5a67", "skin-18": "#5e5a67", "18": "#5e5a67",
 };
 
-const ASSET_V = "?v=8";
+const ASSET_V = "?v=10";
 
 export function resolveSkinSrc(skin?: string | null): string {
   if (!skin || skin === "common" || skin === "default") {
@@ -501,7 +501,7 @@ function Pigeon({
                 className="pigeon-layer layer-eyelids"
                 style={{
                   mixBlendMode: "multiply",
-                  filter: "drop-shadow(0 0 0 " + pigeon.skinColor + ")",
+                  filter: `brightness(1.35) drop-shadow(0 0 0 ${pigeon.skinColor})`,
                 }}
                 onError={(e) => {
                   (e.currentTarget as HTMLElement).style.display = "none";

@@ -399,14 +399,15 @@ def build_skins_assets(bb_mask: np.ndarray):
             fg_bool = np.zeros((512, 512), dtype=bool)
             fg_bool[py:py+th, px:px+tw] = (res_fg > 0)
 
-            # Отсечение тени на полу под лапами (y >= 428): оставляем только лапы/когти по контуру эталона
+            # Отсечение тени на полу и белого просвета между лапами (y >= 385) по контуру эталона
             y_grid_s = np.arange(512)[:, None]
             bright_s = canvas_rgb.mean(axis=-1)
             diff_wb_s = canvas_rgb.max(axis=-1) - canvas_rgb.min(axis=-1)
             bb_tight = cv2.dilate(bb_mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))) > 0
+            is_leg_gap_white = (y_grid_s >= 385) & (bb_mask == 0) & (bright_s > 205) & (diff_wb_s < 24)
             is_floor_shadow = (y_grid_s >= 428) & (~bb_tight)
             is_floor_shadow |= (y_grid_s >= 428) & (diff_wb_s < 26) & (bright_s > 155) & (bb_mask == 0)
-            fg_bool[is_floor_shadow] = False
+            fg_bool[is_floor_shadow | is_leg_gap_white] = False
 
             dist_out = cv2.distanceTransform(fg_bool.astype(np.uint8), cv2.DIST_L2, 3)
             dist_white = np.sqrt(np.sum((255.0 - canvas_rgb) ** 2, axis=-1))
@@ -525,21 +526,22 @@ def build_shoes_assets(bb_arr: np.ndarray, base_512: np.ndarray):
             is_shoe_region = (y_grid >= 385) & (y_grid <= 508) & (x_grid >= 150) & (x_grid <= 415)
 
             is_bg = (bright > 245) & (diff_wb < 14)
-            # Тень пола: нейтральный серый/белый градиент под подошвой и слева от пятки
-            is_shadow_cand = (y_grid >= 438) & (diff_wb <= 20) & (bright > 145)
+            # Белый просвет между ногами выше y=445 и левая тень пола
+            is_leg_gap_white = (y_grid < 445) & (bright > 224) & (diff_wb < 18)
+            is_shadow_cand = (y_grid >= 430) & (diff_wb <= 22) & (bright > 145)
             sh_flood = is_shadow_cand.astype(np.uint8) * 255
             fl_s = np.zeros((514, 514), dtype=np.uint8)
-            for pt in [(145, 455), (145, 480), (415, 455), (415, 480), (256, 510)]:
+            for pt in [(145, 445), (145, 470), (415, 455), (415, 480), (256, 510)]:
                 if sh_flood[pt[1], pt[0]] > 0:
                     cv2.floodFill(sh_flood, fl_s, pt, 128)
-            is_floor = (sh_flood == 128) | ((y_grid >= 440) & (x_grid < 208) & (diff_wb <= 22) & (bright > 140)) | ((y_grid > 465) & (diff_wb <= 16) & (bright > 170))
+            is_floor = (sh_flood == 128) | ((y_grid >= 430) & (x_grid < 212) & (diff_wb <= 24) & (bright > 140)) | ((y_grid > 465) & (diff_wb <= 16) & (bright > 170))
 
-            raw_shoe = is_shoe_region & is_shoe_cand & ~is_bg & ~is_floor
+            raw_shoe = is_shoe_region & is_shoe_cand & ~is_bg & ~is_floor & ~is_leg_gap_white
 
             # Убираем тонкие тени пола, соединённые с внешним фоном внизу
             kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
             closed = cv2.morphologyEx(raw_shoe.astype(np.uint8), cv2.MORPH_CLOSE, kernel)
-            solid = fill_mask_holes(closed > 0)
+            solid = fill_mask_holes(closed > 0) & ~is_leg_gap_white & ~is_floor
 
             num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(solid.astype(np.uint8))
             clean_shoe = np.zeros_like(solid)
@@ -663,12 +665,14 @@ def build_clothes_assets(base_512: np.ndarray):
             garment_closed = cv2.morphologyEx((is_garment_diff & is_cloth_zone & ~is_exterior_bg).astype(np.uint8), cv2.MORPH_CLOSE, kernel_cl) > 0
             garment_solid = fill_mask_holes(garment_closed)
 
-            # Строгое отсечение голого хвоста (x < 178), если там нет ткани (diff_base < 35), и оранжевых лап внизу
+            # Строгое отсечение голого хвоста (x < 178), сине-серой шеи над воротником (не трогая белую рубашку!), лап и просвета между ног
             is_tail_feather = (x_grid < 178) & (diff_base < 35)
+            is_blue_neck_feather = (aligned[:, :, 0].astype(int) > aligned[:, :, 2].astype(int) + 4) & (bright < 190)
+            is_bare_neck = (y_grid < 222) & (x_grid >= 205) & (x_grid <= 345) & ((diff_base < 32) | is_blue_neck_feather) & ~((bright > 185) & (diff_wb < 20))
             is_orange_claw = (y_grid > 395) & (aligned[:, :, 2] > 155) & (aligned[:, :, 2] - aligned[:, :, 0] > 45)
-            is_leg_gap = (y_grid > 405) & (diff_base < 36)
+            is_leg_gap = (y_grid > 395) & ((diff_base < 36) | ((bright > 215) & (diff_wb < 22)))
 
-            cloth_cand = garment_solid & is_cloth_zone & ~is_exterior_bg & ~is_head & ~is_floor & ~is_tail_feather & ~is_orange_claw & ~is_leg_gap
+            cloth_cand = garment_solid & is_cloth_zone & ~is_exterior_bg & ~is_head & ~is_floor & ~is_tail_feather & ~is_bare_neck & ~is_orange_claw & ~is_leg_gap
 
             num_l, labels, stats, centroids = cv2.connectedComponentsWithStats(cloth_cand.astype(np.uint8))
             clean_clothes = np.zeros_like(cloth_cand)
