@@ -307,34 +307,69 @@ def iter_sheet_cells(sheet_path: Path):
         yield sheet_rgb[r * ch : (r + 1) * ch, c * cw : (c + 1) * cw]
 
 
+def iter_sheet_cells_rgba(sheet_path: Path):
+    """Разрезает лист 2x3 на 6 RGBA-ячеек (если в файле 4 канала — сохраняет готовую альфу)."""
+    sheet = cv2.imread(str(sheet_path), cv2.IMREAD_UNCHANGED)
+    if sheet is None:
+        return
+    if sheet.ndim == 3 and sheet.shape[2] == 4:
+        sheet_rgba = cv2.cvtColor(sheet, cv2.COLOR_BGRA2RGBA)
+    else:
+        sheet_rgb = cv2.cvtColor(sheet, cv2.COLOR_BGR2RGB)
+        alpha = np.full(sheet_rgb.shape[:2], 255, dtype=np.uint8)
+        sheet_rgba = np.dstack([sheet_rgb, alpha])
+    h, w, _ = sheet_rgba.shape
+    ch, cw = h // 2, w // 3
+    for idx in range(6):
+        r, c = idx // 3, idx % 3
+        yield sheet_rgba[r * ch : (r + 1) * ch, c * cw : (c + 1) * cw]
+
+
 def build_skins_assets(ref_rgba: np.ndarray, session):
-    """Сегментирует 18 скинов через rembg и выравнивает под эталон через findTransformECC."""
+    """
+    Обрабатывает 18 скинов:
+      - При наличии PNG с альфа-каналом (skins*-Photoroom.png) использует готовую матовую альфу без rembg.
+      - Иначе сегментирует JPEG через rembg.
+    Выравнивает каждый скин под эталон body-base.webp через findTransformECC (MOTION_AFFINE).
+    """
     skins_dir = RAW_DIR / "skins"
     out_skins_dir = OUT_DIR / "skins"
     out_skins_dir.mkdir(parents=True, exist_ok=True)
     ref_alpha = ref_rgba[:, :, 3].astype(np.float32) / 255.0
 
-    print(f"\n[4/7] Сегментация (rembg) и ECC-выравнивание 18 окрасов из {skins_dir}...")
+    print(f"\n[4/7] Выравнивание 18 окрасов из {skins_dir}...")
     skin_idx = 1
-    for s_name in ["skins1.jpg", "skins2.jpg", "skins3.jpg"]:
-        sheet_path = skins_dir / s_name
-        if not sheet_path.exists():
-            print(f"  ⚠ Пропуск: {s_name} не найден")
-            continue
-        for cell_rgb in iter_sheet_cells(sheet_path):
-            seg_rgba = segment_subject(cell_rgb, session)
-            # Сохраняем исходный RGB (чтобы на узорных белых полосах, напр. зебра #07, не терялся цвет внутри ядра)
-            seg_with_rgb = np.dstack([cell_rgb, seg_rgba[:, :, 3]])
-            aligned_rgba = align_to_reference_ecc(seg_with_rgb, ref_alpha, mask_mode="full")
-            # Внутри плотного ядра эталона (ref_alpha > 0.88) не должно быть прозрачных дыр от rembg
-            core_fill = (ref_alpha > 0.88) & (aligned_rgba[:, :, 3] < 240)
-            if np.any(core_fill):
-                aligned_rgba[core_fill, 3] = 255
-            out_file = out_skins_dir / f"skin-{skin_idx:02d}.webp"
-            save_rgba_webp(aligned_rgba, out_file)
-            px = int(np.sum(aligned_rgba[:, :, 3] > 20))
-            print(f"  ✓ Скин #{skin_idx:02d}: {out_file.name} (пикселей: {px})")
-            skin_idx += 1
+    for i in range(1, 4):
+        png_path = skins_dir / f"skins{i}-Photoroom.png"
+        jpg_path = skins_dir / f"skins{i}.jpg"
+        if png_path.exists():
+            print(f"  → Используем PNG с альфа-каналом: {png_path.name}")
+            for cell_rgba in iter_sheet_cells_rgba(png_path):
+                aligned_rgba = align_to_reference_ecc(cell_rgba, ref_alpha, mask_mode="full")
+                core_fill = (ref_alpha > 0.88) & (aligned_rgba[:, :, 3] < 240)
+                if np.any(core_fill):
+                    aligned_rgba[core_fill, 3] = 255
+                out_file = out_skins_dir / f"skin-{skin_idx:02d}.webp"
+                save_rgba_webp(aligned_rgba, out_file)
+                px = int(np.sum(aligned_rgba[:, :, 3] > 20))
+                print(f"  ✓ Скин #{skin_idx:02d} (PNG): {out_file.name} (пикселей: {px})")
+                skin_idx += 1
+        elif jpg_path.exists():
+            print(f"  → Используем JPEG + rembg: {jpg_path.name}")
+            for cell_rgb in iter_sheet_cells(jpg_path):
+                seg_rgba = segment_subject(cell_rgb, session)
+                seg_with_rgb = np.dstack([cell_rgb, seg_rgba[:, :, 3]])
+                aligned_rgba = align_to_reference_ecc(seg_with_rgb, ref_alpha, mask_mode="full")
+                core_fill = (ref_alpha > 0.88) & (aligned_rgba[:, :, 3] < 240)
+                if np.any(core_fill):
+                    aligned_rgba[core_fill, 3] = 255
+                out_file = out_skins_dir / f"skin-{skin_idx:02d}.webp"
+                save_rgba_webp(aligned_rgba, out_file)
+                px = int(np.sum(aligned_rgba[:, :, 3] > 20))
+                print(f"  ✓ Скин #{skin_idx:02d} (rembg): {out_file.name} (пикселей: {px})")
+                skin_idx += 1
+        else:
+            print(f"  ⚠ Пропуск: лист скинов #{i} не найден")
 
 
 def extract_accessory_diff(
