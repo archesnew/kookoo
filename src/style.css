@@ -398,7 +398,8 @@ button:disabled {
   --rarity: #aeb5c2;
   position: relative;
   flex: 1 0 auto;
-  min-height: 350px;
+  min-height: 365px;
+  padding-top: 24px;
   width: 100%;
   max-width: 100%;
   display: flex;
@@ -1704,7 +1705,7 @@ button:disabled {
 
 @media (max-height: 860px) {
   .pigeon-stage-container {
-    min-height: 315px;
+    min-height: 335px;
   }
   .pigeon-layers {
     width: min(82vw, 310px);

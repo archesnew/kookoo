@@ -521,12 +521,12 @@ def build_standalone_hats_assets(session):
                 else:
                     seg_rgba = segment_subject(cell[:, :, :3], session)
 
-                # Убираем мелкий мусор/осколки на краях ячейки (area < 80)
+                # Убираем мелкий мусор/осколки на краях ячейки (area < 400)
                 num_l, labels, stats, _ = cv2.connectedComponentsWithStats((seg_rgba[:, :, 3] > 20).astype(np.uint8))
                 if num_l > 1:
                     valid = np.zeros(seg_rgba.shape[:2], dtype=bool)
                     for lbl in range(1, num_l):
-                        if stats[lbl, cv2.CC_STAT_AREA] >= 80:
+                        if stats[lbl, cv2.CC_STAT_AREA] >= 400:
                             valid[labels == lbl] = True
                     seg_rgba[~valid, 3] = 0
 
