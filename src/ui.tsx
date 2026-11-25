@@ -411,7 +411,7 @@ function Pigeon({
           >
             {/* Базовое тело (z-index: 10, с поддержкой 18 окрасов; при надетой обуви скрываем нижние пальцы) */}
             <img
-              key={skinTrait || "base"}
+              key={`skin-${skinTrait || "base"}`}
               src={resolveSkinSrc(skinTrait)}
               alt="Базовое тело голубя"
               className="pigeon-layer layer-base"
@@ -436,7 +436,7 @@ function Pigeon({
             {/* Слой шеи (z-index: 15, для common не выводится) */}
             {raritySlug !== "common" && (
               <img
-                key={raritySlug}
+                key={`neck-${raritySlug}`}
                 src={`/assets/pigeon/neck-${raritySlug}.webp`}
                 alt={`Шея: ${rarity[rarityIndex]}`}
                 className="pigeon-layer layer-neck"
@@ -447,7 +447,7 @@ function Pigeon({
             {/* Слой обуви (z-index: 20, 18 вариантов) */}
             {resolveShoesSrc(shoesTrait) && (
               <img
-                key={shoesTrait || "shoes"}
+                key={`shoes-${shoesTrait || "shoes"}`}
                 src={resolveShoesSrc(shoesTrait)!}
                 alt={`Обувь: ${shoesTrait}`}
                 className="pigeon-layer layer-shoes"
@@ -466,7 +466,7 @@ function Pigeon({
             {/* Слой одежды (z-index: 30, 18 вариантов) */}
             {resolveClothesSrc(clothingTrait) && (
               <img
-                key={clothingTrait || "clothing"}
+                key={`clothes-${clothingTrait || "clothing"}`}
                 src={resolveClothesSrc(clothingTrait)!}
                 alt={`Одежда: ${clothingTrait}`}
                 className="pigeon-layer layer-clothing"
@@ -534,7 +534,7 @@ function Pigeon({
             {/* Слой головного убора (z-index: 60, 18 вариантов) */}
             {resolveHatSrc(hatTrait) && (
               <img
-                key={hatTrait || "hat"}
+                key={`hat-${hatTrait || "hat"}`}
                 src={resolveHatSrc(hatTrait)!}
                 alt={`Головной убор: ${hatTrait}`}
                 className="pigeon-layer layer-hat"
