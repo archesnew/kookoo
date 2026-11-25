@@ -379,8 +379,8 @@ def extract_accessory_diff(
         x_min_ref = int(xs_ref.min())
         rgb_c = aligned_rgba[:, :, :3].astype(int)
         is_gray_feather = (rgb_c[:, :, 2] >= rgb_c[:, :, 0] - 8) & (rgb_c.mean(axis=-1) < 190)
-        is_tail = (x_grid < int(x_min_ref + w_ref * 0.21)) & (diff < 52.0) & is_gray_feather
-        is_neck = (y_grid < y_min_ref + int(h_ref * 0.36)) & (x_grid > x_min_ref + int(w_ref * 0.32)) & (x_grid < x_min_ref + int(w_ref * 0.78)) & ((diff < 55.0) & is_gray_feather)
+        is_tail = (x_grid < int(x_min_ref + w_ref * 0.23)) & is_gray_feather
+        is_neck = (y_grid < y_min_ref + int(h_ref * 0.36)) & (x_grid > x_min_ref + int(w_ref * 0.30)) & (x_grid < x_min_ref + int(w_ref * 0.78)) & is_gray_feather & (diff < 75.0)
         raw_diff = (alpha_src > 40) & ((~ref_body) | (diff > 28.0)) & (y_grid >= y_head_end) & (y_grid <= y_feet_start) & (~is_tail) & (~is_neck)
         opened = cv2.morphologyEx(raw_diff.astype(np.uint8), cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
         closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (21, 21))) > 0

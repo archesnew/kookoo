@@ -123,7 +123,7 @@ export const PIGEON_SKIN_COLORS: Record<string, string> = {
   "iridescent-oil-slick": "#5e5a67", "skin-18": "#5e5a67", "18": "#5e5a67",
 };
 
-const ASSET_V = "?v=11";
+const ASSET_V = "?v=12";
 
 export function resolveSkinSrc(skin?: string | null): string {
   if (!skin || skin === "common" || skin === "default") {
@@ -409,12 +409,20 @@ function Pigeon({
             role="img"
             aria-label={`Голубь KOO KOO, редкость: ${rarity[rarityIndex]}`}
           >
-            {/* Базовое тело (z-index: 10, с поддержкой 18 окрасов) */}
+            {/* Базовое тело (z-index: 10, с поддержкой 18 окрасов; при надетой обуви скрываем нижние пальцы) */}
             <img
               key={skinTrait || "base"}
               src={resolveSkinSrc(skinTrait)}
               alt="Базовое тело голубя"
               className="pigeon-layer layer-base"
+              style={
+                resolveShoesSrc(shoesTrait)
+                  ? {
+                      WebkitMaskImage: "linear-gradient(to bottom, #000 84%, transparent 91%)",
+                      maskImage: "linear-gradient(to bottom, #000 84%, transparent 91%)",
+                    }
+                  : undefined
+              }
               onError={(e) => {
                 const target = e.currentTarget as HTMLImageElement;
                 if (!target.src.includes("body-base.webp")) {
