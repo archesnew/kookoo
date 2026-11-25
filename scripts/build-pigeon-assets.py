@@ -399,14 +399,13 @@ def build_skins_assets(bb_mask: np.ndarray):
             fg_bool = np.zeros((512, 512), dtype=bool)
             fg_bool[py:py+th, px:px+tw] = (res_fg > 0)
 
-            # Отсечение тени на полу под лапами (y >= 442): оставляем только лапы/когти, убираем серый/белый овал стола
+            # Отсечение тени на полу под лапами (y >= 428): оставляем только лапы/когти по контуру эталона
             y_grid_s = np.arange(512)[:, None]
             bright_s = canvas_rgb.mean(axis=-1)
             diff_wb_s = canvas_rgb.max(axis=-1) - canvas_rgb.min(axis=-1)
-            bb_dilated = cv2.dilate(bb_mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))) > 0
-            is_floor_shadow = (y_grid_s >= 440) & (diff_wb_s < 28) & (bright_s > 155) & (~bb_dilated)
-            is_floor_shadow |= (y_grid_s >= 452) & (diff_wb_s < 24) & (bright_s > 165)
-            is_floor_shadow |= (y_grid_s >= 456) & (~bb_dilated)
+            bb_tight = cv2.dilate(bb_mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))) > 0
+            is_floor_shadow = (y_grid_s >= 428) & (~bb_tight)
+            is_floor_shadow |= (y_grid_s >= 428) & (diff_wb_s < 26) & (bright_s > 155) & (bb_mask == 0)
             fg_bool[is_floor_shadow] = False
 
             dist_out = cv2.distanceTransform(fg_bool.astype(np.uint8), cv2.DIST_L2, 3)
