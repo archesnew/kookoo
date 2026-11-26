@@ -668,11 +668,16 @@ def build_accessories_assets(
     item_idx = 1
     for s_name in sheet_names:
         sheet_path = src_dir / s_name
-        if not sheet_path.exists():
+        photoroom_path = src_dir / f"{Path(s_name).stem}-Photoroom.png"
+        if photoroom_path.exists():
+            print(f"  ✓ Используем готовый RGBA PNG: {photoroom_path.name}")
+            cells = [cell for cell in iter_sheet_cells_rgba(photoroom_path)]
+        elif sheet_path.exists():
+            cells = [segment_subject(cell_rgb, session) for cell_rgb in iter_sheet_cells(sheet_path)]
+        else:
             print(f"  ⚠ Пропуск: {s_name} не найден")
             continue
-        for cell_rgb in iter_sheet_cells(sheet_path):
-            seg_rgba = segment_subject(cell_rgb, session)
+        for seg_rgba in cells:
             aligned_rgba = align_to_reference_ecc(seg_rgba, ref_alpha, mask_mode=mask_mode)
             isolated_rgba = extract_accessory_diff(aligned_rgba, ref_rgba, slot)
             out_file = out_slot_dir / f"{slot}-{item_idx:02d}.webp"
