@@ -473,7 +473,7 @@ def extract_accessory_diff(
 # Используется расширенный холст 512x576 (64px запас сверху), чтобы высокие шапки были в натуральную величину и не обрезались
 HAT_HEADROOM = 64
 STANDALONE_HAT_FIT: dict[int, tuple[int, int, int]] = {
-    1: (208, 294, 106),  # Чёрная панама
+    1: (208, 294, 116),  # Чёрная панама
     2: (202, 308, 112),  # Жёлтая кепка
     3: (162, 299, 92),   # Золотая корона
     4: (224, 290, 174),  # Шапка-ушанка
@@ -497,11 +497,14 @@ STANDALONE_HAT_ANGLES: dict[int, float] = {
 }
 
 
-def build_standalone_hats_assets(session):
+def build_standalone_hats_assets(session, ref_rgba: np.ndarray | None = None):
     """Вырезает и сажает на голову эталона 18 отдельных головных уборов из PNG-листов."""
     src_dir = RAW_DIR / "hats"
     out_slot_dir = OUT_DIR / "hats"
     out_slot_dir.mkdir(parents=True, exist_ok=True)
+    ref_head_pad = None
+    if ref_rgba is not None:
+        ref_head_pad = np.pad(ref_rgba[:, :, 3] > 128, ((HAT_HEADROOM, 0), (0, 0)))
     print(f"\n[7/7] Посадка 18 отдельных PNG-шапок из {src_dir}...")
 
     item_idx = 1
@@ -580,6 +583,20 @@ def build_standalone_hats_assets(session):
                 dy1 = min(hat_size[1], y_dst0 + new_h)
                 if dx1 > dx0 and dy1 > dy0:
                     canvas[dy0:dy1, dx0:dx1] = resized[sy0:sy0 + (dy1 - dy0), sx0:sx0 + (dx1 - dx0)]
+
+                # Для шапок с глубоким тёмным внутренним отверстием (панама 01, ушанка 04, авиатор 18)
+                # вырезаем тёмную внутреннюю полость там, где она перекрывает голову эталона
+                if ref_head_pad is not None and item_idx in (1, 4, 18):
+                    hys = np.where(canvas[:, :, 3] > 20)[0]
+                    if len(hys) > 0:
+                        y_mid = int(hys.min() + (hys.max() - hys.min()) * 0.58)
+                        y_grid = np.arange(hat_size[1])[:, None]
+                        bright = canvas[:, :, :3].mean(axis=2)
+                        thresh = 28 if item_idx == 1 else 32
+                        interior = ref_head_pad & (bright < thresh) & (y_grid >= y_mid) & (canvas[:, :, 3] > 20)
+                        interior = cv2.dilate(interior.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))) > 0
+                        keep_mask = cv2.GaussianBlur((~interior).astype(np.float32), (3, 3), 0.7)
+                        canvas[:, :, 3] = np.clip(canvas[:, :, 3].astype(np.float32) * keep_mask, 0, 255).astype(np.uint8)
 
                 out_file = out_slot_dir / f"hats-{item_idx:02d}.webp"
                 save_rgba_webp(canvas, out_file, size=hat_size)
@@ -735,7 +752,7 @@ def main():
     build_accessories_assets("shoes", ["shoes1.jpg", "shoes2.jpg", "shoes3.jpg"], ref_rgba, session, "[5/7]")
     build_accessories_assets("clothes", ["clothes1.jpg", "clothes2.png", "clothes3.png"], ref_rgba, session, "[6/7]")
     if (RAW_DIR / "hats" / "hats-raw-1.png").exists():
-        build_standalone_hats_assets(session)
+        build_standalone_hats_assets(session, ref_rgba)
     else:
         build_accessories_assets("hats", ["hats1.png", "hats2.png", "hats3.png"], ref_rgba, session, "[7/7]")
 
