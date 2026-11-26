@@ -970,19 +970,24 @@ button:disabled {
 }
 
 .dev-hat-tuner-sliders {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
-  flex-wrap: wrap;
 }
 
 .dev-hat-tuner-sliders label {
-  flex: 1 1 calc(33.333% - 6px);
-  min-width: 85px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
   font-size: 10px;
   color: #a89caf;
+}
+
+@media (max-width: 420px) {
+  .dev-hat-tuner-sliders {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .dev-hat-tuner-sliders input[type="range"] {
@@ -1752,11 +1757,12 @@ button:disabled {
 
 @media (max-height: 860px) {
   .pigeon-stage-container {
-    min-height: 350px;
+    min-height: 295px;
+    padding-top: 18px;
   }
   .pigeon-layers {
-    width: min(82vw, 310px);
-    height: min(82vw, 310px);
+    width: min(76vw, 270px);
+    height: min(76vw, 270px);
   }
 }
 

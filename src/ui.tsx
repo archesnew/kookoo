@@ -261,27 +261,28 @@ export type HatFit = {
   offsetX: number;
   offsetY: number;
   scale: number;
+  rotate: number;
 };
 
 export const HAT_FIT_CONFIG: Record<string, Partial<HatFit>> = {
-  "01": { offsetX: 0, offsetY: 0, scale: 1 },
-  "02": { offsetX: 0, offsetY: 0, scale: 1 },
-  "03": { offsetX: 0, offsetY: 0, scale: 1 },
-  "04": { offsetX: 0, offsetY: 0, scale: 1 },
-  "05": { offsetX: 0, offsetY: 0, scale: 1 },
-  "06": { offsetX: 0, offsetY: 0, scale: 1 },
-  "07": { offsetX: 0, offsetY: 0, scale: 1 },
-  "08": { offsetX: 0, offsetY: 0, scale: 1 },
-  "09": { offsetX: 0, offsetY: 0, scale: 1 },
-  "10": { offsetX: 0, offsetY: 0, scale: 1 },
-  "11": { offsetX: 0, offsetY: 0, scale: 1 },
-  "12": { offsetX: 0, offsetY: 0, scale: 1 },
-  "13": { offsetX: 0, offsetY: 0, scale: 1 },
-  "14": { offsetX: 0, offsetY: 0, scale: 1 },
-  "15": { offsetX: 0, offsetY: 0, scale: 1 },
-  "16": { offsetX: 0, offsetY: 0, scale: 1 },
-  "17": { offsetX: 0, offsetY: 0, scale: 1 },
-  "18": { offsetX: 0, offsetY: 0, scale: 1 },
+  "01": { offsetX: 0, offsetY: 0, scale: 1, rotate: 0 },
+  "02": { offsetX: 0, offsetY: 0, scale: 1, rotate: 0 },
+  "03": { offsetX: 0, offsetY: 0, scale: 1, rotate: 0 },
+  "04": { offsetX: 0, offsetY: 0, scale: 1, rotate: 0 },
+  "05": { offsetX: 0, offsetY: 0, scale: 1, rotate: 0 },
+  "06": { offsetX: 0, offsetY: 0, scale: 1, rotate: 0 },
+  "07": { offsetX: 0, offsetY: 0, scale: 1, rotate: 0 },
+  "08": { offsetX: 0, offsetY: 0, scale: 1, rotate: 0 },
+  "09": { offsetX: 0, offsetY: 0, scale: 1, rotate: 0 },
+  "10": { offsetX: 0, offsetY: 0, scale: 1, rotate: 0 },
+  "11": { offsetX: 0, offsetY: 0, scale: 1, rotate: 0 },
+  "12": { offsetX: 0, offsetY: 0, scale: 1, rotate: 0 },
+  "13": { offsetX: 0, offsetY: 0, scale: 1, rotate: 0 },
+  "14": { offsetX: 0, offsetY: 0, scale: 1, rotate: 0 },
+  "15": { offsetX: 0, offsetY: 0, scale: 1, rotate: 0 },
+  "16": { offsetX: 0, offsetY: 0, scale: 1, rotate: 0 },
+  "17": { offsetX: 0, offsetY: 0, scale: 1, rotate: 0 },
+  "18": { offsetX: 0, offsetY: 0, scale: 1, rotate: 0 },
 };
 
 export function normalizeHatId(hat?: string | null): string | null {
@@ -301,6 +302,7 @@ export function getHatFit(hat?: string | null, override?: Partial<HatFit> | null
     offsetX: override?.offsetX ?? base.offsetX ?? 0,
     offsetY: override?.offsetY ?? base.offsetY ?? 0,
     scale: override?.scale ?? base.scale ?? 1,
+    rotate: override?.rotate ?? base.rotate ?? 0,
   };
 }
 
@@ -579,7 +581,7 @@ function Pigeon({
                   alt={`Головной убор: ${hatTrait}`}
                   className="pigeon-layer layer-hat"
                   style={{
-                    transform: `translate(${hatFit.offsetX}px, ${hatFit.offsetY}px) scale(${hatFit.scale})`,
+                    transform: `translate(${hatFit.offsetX}px, ${hatFit.offsetY}px) rotate(${hatFit.rotate}deg) scale(${hatFit.scale})`,
                     transformOrigin: "50% 22%",
                   }}
                   onError={(e) => {
@@ -1297,7 +1299,7 @@ export default function App() {
                         type="button"
                         className="dev-preview-reset"
                         onClick={() => {
-                          const snippet = `"${activeHatId}": { offsetX: ${activeHatFit.offsetX}, offsetY: ${activeHatFit.offsetY}, scale: ${Number(activeHatFit.scale.toFixed(2))} },`;
+                          const snippet = `"${activeHatId}": { offsetX: ${activeHatFit.offsetX}, offsetY: ${activeHatFit.offsetY}, scale: ${Number(activeHatFit.scale.toFixed(2))}, rotate: ${activeHatFit.rotate} },`;
                           navigator.clipboard?.writeText(snippet).catch(() => {});
                           setCopiedHatFit(true);
                           setTimeout(() => setCopiedHatFit(false), 1600);
@@ -1352,6 +1354,22 @@ export default function App() {
                           setHatFitOverrides((prev) => ({
                             ...prev,
                             [activeHatId]: { ...activeHatFit, scale: Number(e.target.value) },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>Угол: {activeHatFit.rotate > 0 ? `+${activeHatFit.rotate}` : activeHatFit.rotate}°</span>
+                      <input
+                        type="range"
+                        min={-45}
+                        max={45}
+                        step={1}
+                        value={activeHatFit.rotate}
+                        onChange={(e) =>
+                          setHatFitOverrides((prev) => ({
+                            ...prev,
+                            [activeHatId]: { ...activeHatFit, rotate: Number(e.target.value) },
                           }))
                         }
                       />
