@@ -128,7 +128,7 @@ export const PIGEON_SKIN_COLORS: Record<string, string> = {
   "iridescent-oil-slick": "#5e5a67", "skin-18": "#5e5a67", "18": "#5e5a67",
 };
 
-const ASSET_V = "?v=36";
+const ASSET_V = "?v=37";
 
 export const TAB_BACKGROUNDS: Record<string, string> = {
   birds: `/assets/backgrounds/home.webp${ASSET_V}`,
@@ -311,14 +311,37 @@ export const HAT_FIT_CONFIG: Record<string, Partial<HatFit>> = {
   "18": { offsetX: 0, offsetY: 0, scale: 1, rotate: 0 },
 };
 
-export function normalizeHatId(hat?: string | null): string | null {
-  if (!hat || hat === "none") return null;
-  const clean = hat.replace(/^hats-/, "").replace(/^hat-/, "").trim();
+export const SHOES_FIT_CONFIG: Record<string, Partial<HatFit>> = Object.fromEntries(
+  Array.from({ length: 18 }, (_, i) => [
+    String(i + 1).padStart(2, "0"),
+    { offsetX: 0, offsetY: 0, scale: 1, rotate: 0 },
+  ])
+);
+
+export function normalizeSlotId(val?: string | null, prefix = "hats"): string | null {
+  if (!val || val === "none") return null;
+  const clean = val.replace(new RegExp(`^${prefix}-|^${prefix.replace(/s$/, "")}-`), "").trim();
   const num = parseInt(clean, 10);
   if (!isNaN(num) && num >= 1 && num <= 18) {
     return String(num).padStart(2, "0");
   }
   return clean || null;
+}
+
+export function normalizeHatId(hat?: string | null): string | null {
+  return normalizeSlotId(hat, "hats");
+}
+
+export function getShoesFit(shoes?: string | null, override?: Partial<HatFit> | null): HatFit {
+  const id = normalizeSlotId(shoes, "shoes");
+  const base = (id && SHOES_FIT_CONFIG[id]) || {};
+  return {
+    offsetX: override?.offsetX ?? base.offsetX ?? 0,
+    offsetY: override?.offsetY ?? base.offsetY ?? 0,
+    scale: override?.scale ?? base.scale ?? 1,
+    rotate: override?.rotate ?? base.rotate ?? 0,
+    flipX: override?.flipX ?? base.flipX ?? false,
+  };
 }
 
 export function getHatFit(hat?: string | null, override?: Partial<HatFit> | null): HatFit {
@@ -331,6 +354,95 @@ export function getHatFit(hat?: string | null, override?: Partial<HatFit> | null
     rotate: override?.rotate ?? base.rotate ?? 0,
     flipX: override?.flipX ?? base.flipX ?? false,
   };
+}
+
+export function LayerFitTuner({
+  title,
+  fit,
+  hasOverride,
+  copied,
+  onChange,
+  onReset,
+  onCopyAll,
+}: {
+  title: string;
+  fit: HatFit;
+  hasOverride: boolean;
+  copied: boolean;
+  onChange: (next: HatFit) => void;
+  onReset: () => void;
+  onCopyAll: () => void;
+}) {
+  return (
+    <div className="dev-hat-tuner">
+      <div className="dev-hat-tuner-header">
+        <span>{title}</span>
+        <div className="dev-hat-tuner-actions">
+          {hasOverride && (
+            <button type="button" className="dev-preview-reset" onClick={onReset}>
+              ↺
+            </button>
+          )}
+          <button
+            type="button"
+            className="dev-preview-reset"
+            onClick={() => onChange({ ...fit, flipX: !fit.flipX })}
+          >
+            {fit.flipX ? "⇄ Зеркало: ВКЛ" : "⇄ Зеркало"}
+          </button>
+          <button type="button" className="dev-preview-reset" onClick={onCopyAll}>
+            {copied ? "✓ Скопировано" : "📋 Весь конфиг"}
+          </button>
+        </div>
+      </div>
+      <div className="dev-hat-tuner-sliders">
+        <label>
+          <span>X: {fit.offsetX > 0 ? `+${fit.offsetX}` : fit.offsetX}px</span>
+          <input
+            type="range"
+            min={-40}
+            max={40}
+            step={1}
+            value={fit.offsetX}
+            onChange={(e) => onChange({ ...fit, offsetX: Number(e.target.value) })}
+          />
+        </label>
+        <label>
+          <span>Y: {fit.offsetY > 0 ? `+${fit.offsetY}` : fit.offsetY}px</span>
+          <input
+            type="range"
+            min={-40}
+            max={40}
+            step={1}
+            value={fit.offsetY}
+            onChange={(e) => onChange({ ...fit, offsetY: Number(e.target.value) })}
+          />
+        </label>
+        <label>
+          <span>Scale: {fit.scale.toFixed(2)}×</span>
+          <input
+            type="range"
+            min={0.7}
+            max={1.4}
+            step={0.02}
+            value={fit.scale}
+            onChange={(e) => onChange({ ...fit, scale: Number(e.target.value) })}
+          />
+        </label>
+        <label>
+          <span>Угол: {fit.rotate > 0 ? `+${fit.rotate}` : fit.rotate}°</span>
+          <input
+            type="range"
+            min={-45}
+            max={45}
+            step={1}
+            value={fit.rotate}
+            onChange={(e) => onChange({ ...fit, rotate: Number(e.target.value) })}
+          />
+        </label>
+      </div>
+    </div>
+  );
 }
 
 export const DEV_HAT_OPTIONS = [
@@ -377,6 +489,7 @@ function Pigeon({
   clothingTrait,
   hatTrait,
   hatFitOverride,
+  shoesFitOverride,
   onFeed,
   cost,
   canFeed = true,
@@ -393,6 +506,7 @@ function Pigeon({
   clothingTrait?: string | null;
   hatTrait?: string | null;
   hatFitOverride?: HatFit | null;
+  shoesFitOverride?: HatFit | null;
   onFeed?: () => void;
   cost?: number;
   canFeed?: boolean;
@@ -504,23 +618,30 @@ function Pigeon({
             />
 
             {/* Слой обуви (z-index: 20, 18 вариантов) */}
-            {resolveShoesSrc(shoesTrait) && (
-              <img
-                key={`shoes-${shoesTrait || "shoes"}`}
-                src={resolveShoesSrc(shoesTrait)!}
-                alt={`Обувь: ${shoesTrait}`}
-                className="pigeon-layer layer-shoes"
-                onError={(e) => {
-                  const target = e.currentTarget as HTMLImageElement;
-                  const clean = (shoesTrait || "").replace(/^shoes-/, "");
-                  if (!target.src.includes(`shoes-${clean}.webp`)) {
-                    target.src = `/assets/pigeon/shoes-${clean}.webp`;
-                  } else {
-                    target.style.display = "none";
-                  }
-                }}
-              />
-            )}
+            {resolveShoesSrc(shoesTrait) && (() => {
+              const shoesFit = getShoesFit(shoesTrait, shoesFitOverride);
+              return (
+                <img
+                  key={`shoes-${shoesTrait || "shoes"}`}
+                  src={resolveShoesSrc(shoesTrait)!}
+                  alt={`Обувь: ${shoesTrait}`}
+                  className="pigeon-layer layer-shoes"
+                  style={{
+                    transform: `translate(${shoesFit.offsetX}px, ${shoesFit.offsetY}px) rotate(${shoesFit.rotate}deg) scale(${shoesFit.flipX ? -shoesFit.scale : shoesFit.scale}, ${shoesFit.scale})`,
+                    transformOrigin: "60.5% 86%",
+                  }}
+                  onError={(e) => {
+                    const target = e.currentTarget as HTMLImageElement;
+                    const clean = (shoesTrait || "").replace(/^shoes-/, "");
+                    if (!target.src.includes(`shoes-${clean}.webp`)) {
+                      target.src = `/assets/pigeon/shoes-${clean}.webp`;
+                    } else {
+                      target.style.display = "none";
+                    }
+                  }}
+                />
+              );
+            })()}
 
             {/* Слой одежды (z-index: 30, 18 вариантов) */}
             {resolveClothesSrc(clothingTrait) && (
@@ -916,6 +1037,15 @@ export default function App() {
     }
   });
   const [copiedHatFit, setCopiedHatFit] = useState(false);
+  const [shoesFitOverrides, setShoesFitOverrides] = useState<Record<string, HatFit>>(() => {
+    try {
+      const saved = localStorage.getItem("koo-koo-dev-shoes-fit-v1");
+      return saved ? (JSON.parse(saved) as Record<string, HatFit>) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [copiedShoesFit, setCopiedShoesFit] = useState(false);
 
   useEffect(() => {
     try {
@@ -924,6 +1054,14 @@ export default function App() {
       // ignore storage errors
     }
   }, [hatFitOverrides]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("koo-koo-dev-shoes-fit-v1", JSON.stringify(shoesFitOverrides));
+    } catch {
+      // ignore storage errors
+    }
+  }, [shoesFitOverrides]);
 
   useEffect(() => {
     const t = setInterval(() => setCounter(Date.now()), 1000);
@@ -981,6 +1119,8 @@ export default function App() {
       : bird?.traits?.hat;
   const activeHatId = normalizeHatId(activeHat);
   const activeHatFit = getHatFit(activeHat, activeHatId ? hatFitOverrides[activeHatId] : null);
+  const activeShoesId = normalizeSlotId(activeShoes, "shoes");
+  const activeShoesFit = getShoesFit(activeShoes, activeShoesId ? shoesFitOverrides[activeShoesId] : null);
   const feeds = bird?.cycleFeeds ?? s.cycleFeeds;
   const startedAt = bird?.cycleStartedAt ?? s.cycleStartedAt;
   const expired =
@@ -1174,6 +1314,7 @@ export default function App() {
             clothingTrait={activeClothes}
             hatTrait={activeHat}
             hatFitOverride={activeHatId ? hatFitOverrides[activeHatId] ?? null : null}
+            shoesFitOverride={activeShoesId ? shoesFitOverrides[activeShoesId] ?? null : null}
             onFeed={handleFeed}
             cost={cost}
             canFeed={s.seeds >= cost}
@@ -1320,123 +1461,60 @@ export default function App() {
                 </label>
               </div>
               {activeHatId && (
-                <div className="dev-hat-tuner">
-                  <div className="dev-hat-tuner-header">
-                    <span>Подгонка шапки #{activeHatId}</span>
-                    <div className="dev-hat-tuner-actions">
-                      {hatFitOverrides[activeHatId] && (
-                        <button
-                          type="button"
-                          className="dev-preview-reset"
-                          onClick={() => {
-                            setHatFitOverrides((prev) => {
-                              const next = { ...prev };
-                              delete next[activeHatId];
-                              return next;
-                            });
-                          }}
-                        >
-                          ↺
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="dev-preview-reset"
-                        onClick={() =>
-                          setHatFitOverrides((prev) => ({
-                            ...prev,
-                            [activeHatId]: { ...activeHatFit, flipX: !activeHatFit.flipX },
-                          }))
-                        }
-                      >
-                        {activeHatFit.flipX ? "⇄ Зеркало: ВКЛ" : "⇄ Зеркало"}
-                      </button>
-                      <button
-                        type="button"
-                        className="dev-preview-reset"
-                        onClick={() => {
-                          const merged: Record<string, HatFit> = {};
-                          for (const opt of DEV_HAT_OPTIONS) {
-                            if (opt.id === "none") continue;
-                            merged[opt.id] = getHatFit(opt.id, hatFitOverrides[opt.id]);
-                          }
-                          const snippet = JSON.stringify(merged, null, 2);
-                          navigator.clipboard?.writeText(snippet).catch(() => {});
-                          setCopiedHatFit(true);
-                          setTimeout(() => setCopiedHatFit(false), 1600);
-                        }}
-                      >
-                        {copiedHatFit ? "✓ Скопировано" : "📋 Весь конфиг"}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="dev-hat-tuner-sliders">
-                    <label>
-                      <span>X: {activeHatFit.offsetX > 0 ? `+${activeHatFit.offsetX}` : activeHatFit.offsetX}px</span>
-                      <input
-                        type="range"
-                        min={-40}
-                        max={40}
-                        step={1}
-                        value={activeHatFit.offsetX}
-                        onChange={(e) =>
-                          setHatFitOverrides((prev) => ({
-                            ...prev,
-                            [activeHatId]: { ...activeHatFit, offsetX: Number(e.target.value) },
-                          }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      <span>Y: {activeHatFit.offsetY > 0 ? `+${activeHatFit.offsetY}` : activeHatFit.offsetY}px</span>
-                      <input
-                        type="range"
-                        min={-40}
-                        max={40}
-                        step={1}
-                        value={activeHatFit.offsetY}
-                        onChange={(e) =>
-                          setHatFitOverrides((prev) => ({
-                            ...prev,
-                            [activeHatId]: { ...activeHatFit, offsetY: Number(e.target.value) },
-                          }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      <span>Scale: {activeHatFit.scale.toFixed(2)}×</span>
-                      <input
-                        type="range"
-                        min={0.7}
-                        max={1.4}
-                        step={0.02}
-                        value={activeHatFit.scale}
-                        onChange={(e) =>
-                          setHatFitOverrides((prev) => ({
-                            ...prev,
-                            [activeHatId]: { ...activeHatFit, scale: Number(e.target.value) },
-                          }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      <span>Угол: {activeHatFit.rotate > 0 ? `+${activeHatFit.rotate}` : activeHatFit.rotate}°</span>
-                      <input
-                        type="range"
-                        min={-45}
-                        max={45}
-                        step={1}
-                        value={activeHatFit.rotate}
-                        onChange={(e) =>
-                          setHatFitOverrides((prev) => ({
-                            ...prev,
-                            [activeHatId]: { ...activeHatFit, rotate: Number(e.target.value) },
-                          }))
-                        }
-                      />
-                    </label>
-                  </div>
-                </div>
+                <LayerFitTuner
+                  title={`Подгонка шапки #${activeHatId}`}
+                  fit={activeHatFit}
+                  hasOverride={Boolean(hatFitOverrides[activeHatId])}
+                  copied={copiedHatFit}
+                  onChange={(next) =>
+                    setHatFitOverrides((prev) => ({ ...prev, [activeHatId]: next }))
+                  }
+                  onReset={() =>
+                    setHatFitOverrides((prev) => {
+                      const next = { ...prev };
+                      delete next[activeHatId];
+                      return next;
+                    })
+                  }
+                  onCopyAll={() => {
+                    const merged: Record<string, HatFit> = {};
+                    for (const opt of DEV_HAT_OPTIONS) {
+                      if (opt.id === "none") continue;
+                      merged[opt.id] = getHatFit(opt.id, hatFitOverrides[opt.id]);
+                    }
+                    navigator.clipboard?.writeText(JSON.stringify(merged, null, 2)).catch(() => {});
+                    setCopiedHatFit(true);
+                    setTimeout(() => setCopiedHatFit(false), 1600);
+                  }}
+                />
+              )}
+              {activeShoesId && (
+                <LayerFitTuner
+                  title={`Подгонка обуви #${activeShoesId}`}
+                  fit={activeShoesFit}
+                  hasOverride={Boolean(shoesFitOverrides[activeShoesId])}
+                  copied={copiedShoesFit}
+                  onChange={(next) =>
+                    setShoesFitOverrides((prev) => ({ ...prev, [activeShoesId]: next }))
+                  }
+                  onReset={() =>
+                    setShoesFitOverrides((prev) => {
+                      const next = { ...prev };
+                      delete next[activeShoesId];
+                      return next;
+                    })
+                  }
+                  onCopyAll={() => {
+                    const merged: Record<string, HatFit> = {};
+                    for (const opt of DEV_SHOES_OPTIONS) {
+                      if (opt.id === "none") continue;
+                      merged[opt.id] = getShoesFit(opt.id, shoesFitOverrides[opt.id]);
+                    }
+                    navigator.clipboard?.writeText(JSON.stringify(merged, null, 2)).catch(() => {});
+                    setCopiedShoesFit(true);
+                    setTimeout(() => setCopiedShoesFit(false), 1600);
+                  }}
+                />
               )}
             </div>
           )}

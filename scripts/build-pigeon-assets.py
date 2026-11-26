@@ -422,14 +422,19 @@ def extract_accessory_diff(
     y_grid, x_grid = np.indices(TARGET_SIZE)
 
     if slot == "shoes":
-        # Оставляем только зону обуви внизу (ниже живота y >= 0.78) и отсекаем серую «грязь» на животе/лодыжках
-        y_top_limit = y_min_ref + int(h_ref * 0.78)
-        cand = (alpha_src > 40) & (y_grid >= y_top_limit) & ((~ref_body) | (diff > 38.0) | (y_grid >= y_min_ref + int(h_ref * 0.86)))
+        # Не режем высокие ушки/голенища по прямой: ставим мягкий верхний предел 0.68 (y=334)
+        # и убираем именно серые перья живота/лодыжек по насыщенности и diff
+        y_top_limit = y_min_ref + int(h_ref * 0.68)
+        y_ankle = y_min_ref + int(h_ref * 0.86)
+        rgb_s = aligned_rgba[:, :, :3].astype(np.int16)
+        sat = rgb_s.max(axis=2) - rgb_s.min(axis=2)
+        is_belly_grey = ref_body & (y_grid < y_ankle) & ((diff < 42.0) | ((sat < 28) & (diff < 65.0)))
+        cand = (alpha_src > 40) & (y_grid >= y_top_limit) & (~is_belly_grey)
         opened = cv2.morphologyEx(cand.astype(np.uint8), cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))) > 0
         num_l, labels, stats, centroids = cv2.connectedComponentsWithStats(opened.astype(np.uint8))
         keep = np.zeros_like(cand)
         for lbl in range(1, num_l):
-            if stats[lbl, cv2.CC_STAT_AREA] > 300 and centroids[lbl][1] > y_min_ref + int(h_ref * 0.80):
+            if stats[lbl, cv2.CC_STAT_AREA] > 280 and centroids[lbl][1] > y_min_ref + int(h_ref * 0.78):
                 keep[labels == lbl] = True
         keep = cv2.dilate(keep.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))) > 0
         out[~keep, 3] = 0
