@@ -592,23 +592,23 @@ def build_standalone_hats_assets(session, ref_rgba: np.ndarray | None = None):
 
                 # Для шапок с глубокой тёмной внутренней полостью вырезаем тёмный "вход" внутри нижней-центральной части шапки,
                 # чтобы голова голубя заходила внутрь шапки независимо от смещения X/Y
-                CAVITY_THRESH: dict[int, tuple[float, int]] = {
-                    1: (0.60, 30),   # Чёрная панама
-                    4: (0.48, 54),   # Ушанка (серая тень между ушами)
-                    7: (0.62, 30),   # Шляпа волшебника
-                    15: (0.62, 32),  # Пиратская треуголка
-                    16: (0.60, 56),  # Панама-лягушка (тёмно-зелёная изнанка под полями)
-                    17: (0.58, 45),  # Колпак шута
-                    18: (0.46, 52),  # Шлем авиатора (тёмная полость внутри шлема)
+                CAVITY_THRESH: dict[int, tuple[float, int, float]] = {
+                    1: (0.60, 30, 0.15),   # Чёрная панама
+                    4: (0.48, 54, 0.30),   # Ушанка (только центр между ушами, не трогая левую ткань)
+                    7: (0.62, 30, 0.15),   # Шляпа волшебника
+                    15: (0.62, 32, 0.15),  # Пиратская треуголка
+                    16: (0.60, 56, 0.15),  # Панама-лягушка (тёмно-зелёная изнанка под полями)
+                    17: (0.58, 45, 0.15),  # Колпак шута
+                    18: (0.46, 52, 0.25),  # Шлем авиатора (тёмная полость внутри шлема)
                 }
                 if item_idx in CAVITY_THRESH:
-                    y_frac, thresh = CAVITY_THRESH[item_idx]
+                    y_frac, thresh, x_margin = CAVITY_THRESH[item_idx]
                     hys, hxs = np.where(canvas[:, :, 3] > 20)
                     if len(hys) > 0:
                         y_mid = int(hys.min() + (hys.max() - hys.min()) * y_frac)
                         hw = hxs.max() - hxs.min()
-                        x_lo = int(hxs.min() + hw * 0.15)
-                        x_hi = int(hxs.max() - hw * 0.15)
+                        x_lo = int(hxs.min() + hw * x_margin)
+                        x_hi = int(hxs.max() - hw * x_margin)
                         y_grid = np.arange(hat_size[1])[:, None]
                         x_grid = np.arange(hat_size[0])[None, :]
                         bright = canvas[:, :, :3].mean(axis=2)
@@ -628,6 +628,15 @@ def build_standalone_hats_assets(session, ref_rgba: np.ndarray | None = None):
                         clean_int = cv2.dilate(clean_int.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))) > 0
                         keep_mask = cv2.GaussianBlur((~clean_int).astype(np.float32), (3, 3), 0.7)
                         canvas[:, :, 3] = np.clip(canvas[:, :, 3].astype(np.float32) * keep_mask, 0, 255).astype(np.uint8)
+
+                # У ушанки (04) и шлема авиатора (18) дальнее правое ухо уходит ЗА голову/глаз/клюв голубя
+                if ref_head_pad is not None and item_idx in (4, 18):
+                    y_grid = np.arange(hat_size[1])[:, None]
+                    x_grid = np.arange(hat_size[0])[None, :]
+                    face_front = ref_head_pad & (y_grid >= (HAT_HEADROOM + 70)) & (x_grid >= 294)
+                    face_front = cv2.dilate(face_front.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))) > 0
+                    face_keep = cv2.GaussianBlur((~face_front).astype(np.float32), (3, 3), 0.7)
+                    canvas[:, :, 3] = np.clip(canvas[:, :, 3].astype(np.float32) * face_keep, 0, 255).astype(np.uint8)
 
                 out_file = out_slot_dir / f"hats-{item_idx:02d}.webp"
                 save_rgba_webp(canvas, out_file, size=hat_size)
