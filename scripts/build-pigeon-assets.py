@@ -590,23 +590,42 @@ def build_standalone_hats_assets(session, ref_rgba: np.ndarray | None = None):
                 if dx1 > dx0 and dy1 > dy0:
                     canvas[dy0:dy1, dx0:dx1] = resized[sy0:sy0 + (dy1 - dy0), sx0:sx0 + (dx1 - dx0)]
 
-                # Для шапок с глубоким тёмным внутренним отверстием (панама 01, ушанка 04, авиатор 18)
-                # вырезаем тёмную внутреннюю полость там, где она перекрывает голову эталона
-                if ref_head_pad is not None and item_idx in (1, 4, 18):
-                    hys = np.where(canvas[:, :, 3] > 20)[0]
+                # Для шапок с глубокой тёмной внутренней полостью вырезаем тёмный "вход" внутри нижней-центральной части шапки,
+                # чтобы голова голубя заходила внутрь шапки независимо от смещения X/Y
+                CAVITY_THRESH: dict[int, tuple[float, int]] = {
+                    1: (0.60, 30),   # Чёрная панама
+                    4: (0.48, 54),   # Ушанка (серая тень между ушами)
+                    7: (0.62, 30),   # Шляпа волшебника
+                    15: (0.62, 32),  # Пиратская треуголка
+                    16: (0.60, 56),  # Панама-лягушка (тёмно-зелёная изнанка под полями)
+                    17: (0.58, 45),  # Колпак шута
+                    18: (0.46, 52),  # Шлем авиатора (тёмная полость внутри шлема)
+                }
+                if item_idx in CAVITY_THRESH:
+                    y_frac, thresh = CAVITY_THRESH[item_idx]
+                    hys, hxs = np.where(canvas[:, :, 3] > 20)
                     if len(hys) > 0:
-                        y_mid = int(hys.min() + (hys.max() - hys.min()) * 0.58)
+                        y_mid = int(hys.min() + (hys.max() - hys.min()) * y_frac)
+                        hw = hxs.max() - hxs.min()
+                        x_lo = int(hxs.min() + hw * 0.15)
+                        x_hi = int(hxs.max() - hw * 0.15)
                         y_grid = np.arange(hat_size[1])[:, None]
+                        x_grid = np.arange(hat_size[0])[None, :]
                         bright = canvas[:, :, :3].mean(axis=2)
-                        thresh = 28 if item_idx == 1 else 32
-                        interior = ref_head_pad & (bright < thresh) & (y_grid >= y_mid) & (canvas[:, :, 3] > 20)
+                        interior = (
+                            (bright < thresh)
+                            & (y_grid >= y_mid)
+                            & (x_grid >= x_lo)
+                            & (x_grid <= x_hi)
+                            & (canvas[:, :, 3] > 20)
+                        )
                         n_int, l_int, s_int, _ = cv2.connectedComponentsWithStats(interior.astype(np.uint8))
                         clean_int = np.zeros_like(interior)
                         if n_int > 1:
                             main_int = int(np.argmax(s_int[1:, cv2.CC_STAT_AREA]) + 1)
-                            if s_int[main_int, cv2.CC_STAT_AREA] >= 150:
+                            if s_int[main_int, cv2.CC_STAT_AREA] >= 120:
                                 clean_int = (l_int == main_int)
-                        clean_int = cv2.dilate(clean_int.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))) > 0
+                        clean_int = cv2.dilate(clean_int.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))) > 0
                         keep_mask = cv2.GaussianBlur((~clean_int).astype(np.float32), (3, 3), 0.7)
                         canvas[:, :, 3] = np.clip(canvas[:, :, 3].astype(np.float32) * keep_mask, 0, 255).astype(np.uint8)
 
