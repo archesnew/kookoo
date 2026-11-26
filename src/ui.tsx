@@ -262,6 +262,7 @@ export type HatFit = {
   offsetY: number;
   scale: number;
   rotate: number;
+  flipX?: boolean;
 };
 
 export const HAT_FIT_CONFIG: Record<string, Partial<HatFit>> = {
@@ -303,6 +304,7 @@ export function getHatFit(hat?: string | null, override?: Partial<HatFit> | null
     offsetY: override?.offsetY ?? base.offsetY ?? 0,
     scale: override?.scale ?? base.scale ?? 1,
     rotate: override?.rotate ?? base.rotate ?? 0,
+    flipX: override?.flipX ?? base.flipX ?? false,
   };
 }
 
@@ -581,8 +583,8 @@ function Pigeon({
                   alt={`Головной убор: ${hatTrait}`}
                   className="pigeon-layer layer-hat"
                   style={{
-                    transform: `translate(${hatFit.offsetX}px, ${hatFit.offsetY}px) rotate(${hatFit.rotate}deg) scale(${hatFit.scale})`,
-                    transformOrigin: "50% 22%",
+                    transform: `translate(${hatFit.offsetX}px, ${hatFit.offsetY}px) rotate(${hatFit.rotate}deg) scale(${hatFit.flipX ? -hatFit.scale : hatFit.scale}, ${hatFit.scale})`,
+                    transformOrigin: "58.6% 22%",
                   }}
                   onError={(e) => {
                     const target = e.currentTarget as HTMLImageElement;
@@ -1310,6 +1312,18 @@ export default function App() {
                           ↺
                         </button>
                       )}
+                      <button
+                        type="button"
+                        className="dev-preview-reset"
+                        onClick={() =>
+                          setHatFitOverrides((prev) => ({
+                            ...prev,
+                            [activeHatId]: { ...activeHatFit, flipX: !activeHatFit.flipX },
+                          }))
+                        }
+                      >
+                        {activeHatFit.flipX ? "⇄ Зеркало: ВКЛ" : "⇄ Зеркало"}
+                      </button>
                       <button
                         type="button"
                         className="dev-preview-reset"
