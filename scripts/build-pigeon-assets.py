@@ -154,6 +154,24 @@ def align_to_reference_ecc(
             [inv_s, 0.0, cx_src - inv_s * cx_ref],
             [0.0, inv_s, float(y_bot_src) - inv_s * float(y_bot_ref)],
         ], dtype=np.float32)
+    elif mask_mode == "upper":
+        # Для обуви: игнорируем нижние 30% (обувь разной высоты), оцениваем масштаб и центр по голове/туловищу
+        y_ref_end = int(ys_ref.min() + (ys_ref.max() - ys_ref.min()) * 0.70)
+        y_src_end = int(ys_src.min() + (ys_src.max() - ys_src.min()) * 0.70)
+        m_ref = (ref_alpha > 0.5) & (np.arange(TARGET_SIZE[1])[:, None] <= y_ref_end)
+        m_src = (src_alpha > 0.5) & (np.arange(src_alpha.shape[0])[:, None] <= y_src_end)
+        yr, xr = np.where(m_ref)
+        ys, xs = np.where(m_src)
+        h_ref = max(1, int(yr.max() - yr.min()))
+        h_src = max(1, int(ys.max() - ys.min()))
+        scale_init = h_ref / h_src
+        cx_ref, cy_ref = float(xr.mean()), float(yr.mean())
+        cx_src, cy_src = float(xs.mean()), float(ys.mean())
+        inv_s = 1.0 / scale_init
+        M = np.array([
+            [inv_s, 0.0, cx_src - inv_s * cx_ref],
+            [0.0, inv_s, cy_src - inv_s * cy_ref],
+        ], dtype=np.float32)
     else:
         h_ref = max(1, int(ys_ref.max() - ys_ref.min()))
         h_src = max(1, int(ys_src.max() - ys_src.min()))
@@ -662,7 +680,7 @@ def build_accessories_assets(
     out_slot_dir.mkdir(parents=True, exist_ok=True)
     ref_alpha = ref_rgba[:, :, 3].astype(np.float32) / 255.0
 
-    mode_map = {"shoes": "full", "clothes": "head_and_feet", "hats": "lower_body"}
+    mode_map = {"shoes": "upper", "clothes": "head_and_feet", "hats": "lower_body"}
     mask_mode = mode_map.get(slot, "upper")
 
     print(f"\n{step_label} Сегментация (rembg) и ECC-выравнивание ({mask_mode}) {slot} из {src_dir}...")
@@ -681,6 +699,14 @@ def build_accessories_assets(
         for seg_rgba in cells:
             aligned_rgba = align_to_reference_ecc(seg_rgba, ref_alpha, mask_mode=mask_mode)
             isolated_rgba = extract_accessory_diff(aligned_rgba, ref_rgba, slot)
+            if slot == "shoes":
+                # Выравниваем подошву обуви на уровень лап эталона (y_max = 476), чтобы обувь не свисала с платформы
+                sys_y = np.where(isolated_rgba[:, :, 3] > 20)[0]
+                if len(sys_y) > 0 and sys_y.max() > 478:
+                    shift_up = int(sys_y.max() - 476)
+                    shifted = np.zeros_like(isolated_rgba)
+                    shifted[:-shift_up, :] = isolated_rgba[shift_up:, :]
+                    isolated_rgba = shifted
             out_file = out_slot_dir / f"{slot}-{item_idx:02d}.webp"
             save_rgba_webp(isolated_rgba, out_file)
             px = int(np.sum(isolated_rgba[:, :, 3] > 20))

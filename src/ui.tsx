@@ -128,7 +128,7 @@ export const PIGEON_SKIN_COLORS: Record<string, string> = {
   "iridescent-oil-slick": "#5e5a67", "skin-18": "#5e5a67", "18": "#5e5a67",
 };
 
-const ASSET_V = "?v=34";
+const ASSET_V = "?v=35";
 
 export const TAB_BACKGROUNDS: Record<string, string> = {
   birds: `/assets/backgrounds/home.webp${ASSET_V}`,
