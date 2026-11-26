@@ -629,13 +629,16 @@ def build_standalone_hats_assets(session, ref_rgba: np.ndarray | None = None):
                         keep_mask = cv2.GaussianBlur((~clean_int).astype(np.float32), (3, 3), 0.7)
                         canvas[:, :, 3] = np.clip(canvas[:, :, 3].astype(np.float32) * keep_mask, 0, 255).astype(np.uint8)
 
-                # У ушанки (04) и шлема авиатора (18) дальнее правое ухо уходит ЗА голову/глаз/клюв голубя
+                # У ушанки (04) и шлема авиатора (18) дальнее правое ухо уходит ЗА правый глаз/клюв по плавному эллипсу
                 if ref_head_pad is not None and item_idx in (4, 18):
                     y_grid = np.arange(hat_size[1])[:, None]
                     x_grid = np.arange(hat_size[0])[None, :]
-                    face_front = ref_head_pad & (y_grid >= (HAT_HEADROOM + 70)) & (x_grid >= 294)
+                    cy_e = HAT_HEADROOM + 106
+                    cx_e = 352
+                    is_right_face = (((x_grid - cx_e) / 34.0) ** 2 + ((y_grid - cy_e) / 38.0) ** 2) <= 1.0
+                    face_front = ref_head_pad & is_right_face
                     face_front = cv2.dilate(face_front.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))) > 0
-                    face_keep = cv2.GaussianBlur((~face_front).astype(np.float32), (3, 3), 0.7)
+                    face_keep = cv2.GaussianBlur((~face_front).astype(np.float32), (5, 5), 1.0)
                     canvas[:, :, 3] = np.clip(canvas[:, :, 3].astype(np.float32) * face_keep, 0, 255).astype(np.uint8)
 
                 out_file = out_slot_dir / f"hats-{item_idx:02d}.webp"
