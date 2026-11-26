@@ -687,6 +687,115 @@ def build_accessories_assets(
             item_idx += 1
 
 
+BG_MAPPING = {
+    "bg-5.jpg": "home.webp",
+    "bg-4.jpg": "eggs.webp",
+    "bg-1.jpg": "breeding.webp",
+    "bg-2.jpg": "market.webp",
+    "bg-3.jpg": "quests.webp",
+}
+
+
+def build_backgrounds():
+    """Конвертирует 5 вертикальных фонов (9:16) в оптимизированный WebP в public/assets/backgrounds/."""
+    src_dir = RAW_DIR / "backgrounds"
+    out_dir = ROOT_DIR / "public" / "assets" / "backgrounds"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if not src_dir.exists():
+        print("\n[8/9] Папка backgrounds не найдена, пропуск.")
+        return
+
+    print(f"\n[8/9] Конвертация 5 фонов из {src_dir}...")
+    for src_name, dst_name in BG_MAPPING.items():
+        src_path = src_dir / src_name
+        if not src_path.exists():
+            print(f"  ⚠ Пропуск: {src_name} не найден")
+            continue
+        img = Image.open(src_path).convert("RGB")
+        if dst_name == "home.webp":
+            # Сдвигаем светящуюся платформу вверх (~47% высоты), чтобы голубь стоял ровно на ней
+            arr = np.array(img)
+            h0, w0 = arr.shape[:2]
+            # В bg-5.jpg платформа около y ~ 73% (y ~ 2000 из 2752). Обрезаем верхние 760px неба и
+            # плавно продлеваем нижнюю тёмную стену, чтобы платформа оказалась на ~47% высоты кадра.
+            crop_top = int(h0 * 0.27)
+            cropped = arr[crop_top:, :]
+            pad_bot = h0 - cropped.shape[0]
+            tail = cropped[-pad_bot:, :][::-1]
+            # Мягкое затемнение продлённой нижней части под карточки UI
+            grad = np.linspace(1.0, 0.45, pad_bot, dtype=np.float32)[:, None, None]
+            tail_dark = np.clip(tail.astype(np.float32) * grad, 0, 255).astype(np.uint8)
+            img = Image.fromarray(np.vstack([cropped, tail_dark]), "RGB")
+        # Оптимизируем под мобильный экран 9:16 (1080x1920) без потери качества
+        if img.size != (1080, 1920):
+            img = img.resize((1080, 1920), Image.Resampling.LANCZOS)
+        out_path = out_dir / dst_name
+        img.save(str(out_path), "WEBP", quality=88, method=4)
+        print(f"  ✓ {dst_name} ({out_path.stat().st_size // 1024} KB)")
+
+
+def build_love_eggs(session):
+    """Нарезает лист 3x4 яиц любви на 12 прозрачных WebP (512x512) с defringe и заливкой внутренних дыр."""
+    src_path = RAW_DIR / "love-eggs" / "eggs-love.jpg"
+    out_dir = OUT_DIR / "love-eggs"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if not src_path.exists():
+        print("\n[9/9] Файл love-eggs/eggs-love.jpg не найден, пропуск.")
+        return
+
+    print(f"\n[9/9] Нарезка 12 яиц любви (3x4) из {src_path.name}...")
+    sheet = np.array(Image.open(src_path).convert("RGB"))
+    h, w = sheet.shape[:2]
+    cw, ch = w / 4.0, h / 3.0
+
+    idx = 1
+    for row in range(3):
+        for col in range(4):
+            y0, y1 = int(round(row * ch)), int(round((row + 1) * ch))
+            x0, x1 = int(round(col * cw)), int(round((col + 1) * cw))
+            cell_rgb = sheet[y0:y1, x0:x1]
+            seg = segment_subject(cell_rgb, session)
+
+            # Заливаем возможные внутренние дыры (на белых/перламутровых яйцах #5 и #8)
+            alpha = seg[:, :, 3]
+            ext_mask = (alpha > 45).astype(np.uint8)
+            contours, _ = cv2.findContours(ext_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            filled = np.zeros_like(ext_mask)
+            if contours:
+                cv2.drawContours(filled, contours, -1, 1, thickness=cv2.FILLED)
+            interior_holes = (filled == 1) & (alpha < 210)
+            seg[interior_holes, 3] = 255
+
+            # Defringe белого ореола на полупрозрачных краях
+            a_f = seg[:, :, 3].astype(np.float32) / 255.0
+            edge = (a_f > 0.08) & (a_f < 0.90)
+            if np.any(edge):
+                rgb_f = seg[:, :, :3].astype(np.float32)
+                a_e = a_f[edge][:, None]
+                unpre = np.clip((rgb_f[edge] - 255.0 * (1.0 - a_e)) / a_e, 0.0, 255.0)
+                seg[:, :, :3][edge] = unpre.astype(np.uint8)
+
+            # Нормализуем на холст 512x512 (высота до 420px, по центру)
+            ys, xs = np.where(seg[:, :, 3] > 20)
+            if len(ys) == 0:
+                continue
+            crop = seg[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+            ch_c, cw_c = crop.shape[:2]
+            scale = min(420.0 / max(1, cw_c), 420.0 / max(1, ch_c))
+            nw, nh = max(1, int(round(cw_c * scale))), max(1, int(round(ch_c * scale)))
+            resized = cv2.resize(crop, (nw, nh), interpolation=cv2.INTER_AREA if scale < 1.0 else cv2.INTER_CUBIC)
+            canvas = np.zeros((512, 512, 4), dtype=np.uint8)
+            dx0 = (512 - nw) // 2
+            dy0 = (512 - nh) // 2
+            canvas[dy0:dy0 + nh, dx0:dx0 + nw] = resized
+
+            out_file = out_dir / f"love-egg-{idx:02d}.webp"
+            save_rgba_webp(canvas, out_file)
+            px = int(np.sum(canvas[:, :, 3] > 20))
+            print(f"  ✓ love-egg #{idx:02d}: {out_file.name} (пикселей: {px})")
+            idx += 1
+
+
 def main():
     force = "--force" in sys.argv
     print("=== Сборка ассетов KOO KOO (rembg + ECC MOTION_AFFINE, единый эталон 512x512) ===")
@@ -803,6 +912,10 @@ def main():
         build_standalone_hats_assets(session, ref_rgba)
     else:
         build_accessories_assets("hats", ["hats1.png", "hats2.png", "hats3.png"], ref_rgba, session, "[7/7]")
+
+    # 8–9. Фоны вкладок и 12 яиц любви
+    build_backgrounds()
+    build_love_eggs(session)
 
     total_files = len(list(OUT_DIR.rglob("*.webp")))
     print(f"\nГотово! Всего WebP файлов в {OUT_DIR}: {total_files}")

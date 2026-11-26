@@ -54,7 +54,12 @@ function SeedIcon() {
 function Egg({ level }: { level: number }) {
   return (
     <div className={`egg egg-${level}`}>
-      <i />
+      <img
+        className="egg-sprite"
+        src={resolveLoveEggSrc(level)}
+        alt={`Яйцо любви уровня ${level}`}
+        loading="lazy"
+      />
       <b>{level}</b>
     </div>
   );
@@ -123,7 +128,27 @@ export const PIGEON_SKIN_COLORS: Record<string, string> = {
   "iridescent-oil-slick": "#5e5a67", "skin-18": "#5e5a67", "18": "#5e5a67",
 };
 
-const ASSET_V = "?v=31";
+const ASSET_V = "?v=33";
+
+export const TAB_BACKGROUNDS: Record<string, string> = {
+  birds: `/assets/backgrounds/home.webp${ASSET_V}`,
+  eggs: `/assets/backgrounds/eggs.webp${ASSET_V}`,
+  breed: `/assets/backgrounds/breeding.webp${ASSET_V}`,
+  market: `/assets/backgrounds/market.webp${ASSET_V}`,
+  tasks: `/assets/backgrounds/quests.webp${ASSET_V}`,
+};
+
+export const LOVE_EGG_ASSETS: Record<number, string> = Object.fromEntries(
+  Array.from({ length: 12 }, (_, i) => [
+    i + 1,
+    `/assets/pigeon/love-eggs/love-egg-${String(i + 1).padStart(2, "0")}.webp${ASSET_V}`,
+  ])
+);
+
+export function resolveLoveEggSrc(level: number): string {
+  const clamped = Math.max(1, Math.min(12, Math.round(level || 1)));
+  return LOVE_EGG_ASSETS[clamped];
+}
 
 export function resolveSkinSrc(skin?: string | null): string {
   if (!skin || skin === "common" || skin === "default") {
@@ -447,14 +472,6 @@ function Pigeon({
 
         {/* Радиальное свечение в цвет редкости */}
         <div className="pigeon-halo" />
-
-        {/* Круглый светящийся подиум в цвет редкости под ногами голубя */}
-        <div className="circular-podium" aria-hidden="true">
-          <div className="podium-disc-glow" />
-          <div className="podium-disc" />
-          <div className="podium-ring-outer" />
-          <div className="podium-ring-inner" />
-        </div>
 
         {!imgError ? (
           <div
@@ -1021,8 +1038,18 @@ export default function App() {
     s.select(egg.id);
   };
 
+  const activeBg = TAB_BACKGROUNDS[s.activeTab] || TAB_BACKGROUNDS.birds;
+
   return (
-    <main className="app">
+    <main className={`app tab-${s.activeTab}`}>
+      <div
+        className="app-bg"
+        style={{ backgroundImage: `url(${activeBg})` }}
+        aria-hidden="true"
+      />
+      {s.activeTab !== "birds" && (
+        <div className="app-bg-vignette" aria-hidden="true" />
+      )}
       {splash && (
         <aside
           className={`splash-overlay ${splashFading ? "fade-out" : ""}`}

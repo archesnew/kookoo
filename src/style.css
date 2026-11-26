@@ -71,6 +71,33 @@ button:disabled {
   isolation: isolate;
 }
 
+.app-bg {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, 480px);
+  z-index: -2;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transition: background-image 0.28s ease;
+  pointer-events: none;
+}
+
+.app-bg-vignette {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, 480px);
+  z-index: -1;
+  background: linear-gradient(180deg, rgba(10, 8, 20, 0.5) 0%, rgba(10, 8, 20, 0.65) 100%);
+  pointer-events: none;
+}
+
 /* ─── Верхняя панель (Профиль игрока + Счетчики) ─── */
 .topbar {
   height: 48px;
@@ -1259,41 +1286,39 @@ button:disabled {
 }
 
 .egg {
-  width: 40px;
-  height: 50px;
-  border-radius: 52% 52% 48% 48% / 62% 62% 38% 38%;
-  transform: rotate(-4deg);
-  background: radial-gradient(ellipse at 32% 25%, #fff2c9, #e7bb70 40%, #a96438 100%);
-  box-shadow: inset -5px -5px 10px #65391d88, inset 3px 3px 7px #fff8, 0 6px 10px #0008;
+  width: 44px;
+  height: 44px;
   position: relative;
   display: grid;
   place-items: center;
-  color: #512e21;
 }
 
-.egg i {
-  position: absolute;
-  top: 13px;
-  left: 8px;
-  width: 9px;
-  height: 14px;
-  background: #fff7;
-  border-radius: 50%;
-  filter: blur(2px);
-  transform: rotate(28deg);
+.egg-sprite {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.55));
+  pointer-events: none;
 }
 
 .egg b {
-  font-size: 14px;
-  text-shadow: 0 1px 1px #fff8;
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: rgba(16, 9, 25, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #f3effa;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 14px;
+  text-align: center;
+  text-shadow: none;
 }
-
-.egg-2 { filter: hue-rotate(20deg); }
-.egg-3 { filter: hue-rotate(50deg); }
-.egg-4 { filter: hue-rotate(100deg); }
-.egg-5 { filter: hue-rotate(160deg); }
-.egg-6, .egg-7, .egg-8 { filter: hue-rotate(220deg); }
-.egg-9, .egg-10, .egg-11, .egg-12 { filter: hue-rotate(270deg); }
 
 .cell .egg {
   width: min(90%, 46px);
@@ -1757,8 +1782,8 @@ button:disabled {
 
 @media (max-height: 860px) {
   .pigeon-stage-container {
-    min-height: 295px;
-    padding-top: 18px;
+    min-height: 310px;
+    padding-top: 28px;
   }
   .pigeon-layers {
     width: min(76vw, 270px);
