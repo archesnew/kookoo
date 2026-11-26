@@ -473,24 +473,24 @@ def extract_accessory_diff(
 # Используется расширенный холст 512x576 (64px запас сверху), чтобы высокие шапки были в натуральную величину и не обрезались
 HAT_HEADROOM = 64
 STANDALONE_HAT_FIT: dict[int, tuple[int, int, int]] = {
-    1: (188, 297, 106),  # Чёрная панама
-    2: (184, 308, 104),  # Жёлтая кепка
-    3: (148, 299, 88),   # Золотая корона
-    4: (206, 290, 162),  # Шапка-ушанка
-    5: (184, 306, 103),  # Красная бейсболка
-    6: (190, 276, 132),  # Красная повязка
-    7: (210, 290, 108),  # Шляпа волшебника
-    8: (182, 298, 104),  # Кусок пиццы
-    9: (162, 300, 105),  # Кроличьи ушки
+    1: (190, 297, 110),  # Чёрная панама
+    2: (186, 308, 108),  # Жёлтая кепка
+    3: (150, 299, 90),   # Золотая корона
+    4: (212, 290, 168),  # Шапка-ушанка
+    5: (186, 306, 107),  # Красная бейсболка
+    6: (192, 276, 134),  # Красная повязка
+    7: (212, 290, 112),  # Шляпа волшебника
+    8: (184, 298, 108),  # Кусок пиццы
+    9: (164, 300, 108),  # Кроличьи ушки
     10: (142, 300, 52),  # Золотой нимб
-    11: (180, 307, 102), # Неоновый козырёк
-    12: (172, 294, 105), # Красная шапка с помпоном
-    13: (182, 306, 103), # Кепка с пропеллером
-    14: (178, 298, 103), # Колпак повара
-    15: (204, 296, 105), # Пиратская треуголка
-    16: (192, 298, 105), # Зелёная панама-лягушка
-    17: (202, 294, 124), # Колпак шута
-    18: (194, 288, 148), # Шлем авиатора
+    11: (182, 307, 106), # Неоновый козырёк
+    12: (178, 295, 115), # Красная шапка с помпоном
+    13: (184, 306, 107), # Кепка с пропеллером
+    14: (180, 298, 109), # Колпак повара
+    15: (206, 296, 109), # Пиратская треуголка
+    16: (194, 298, 112), # Зелёная панама-лягушка
+    17: (204, 294, 126), # Колпак шута
+    18: (200, 288, 154), # Шлем авиатора
 }
 
 
@@ -510,27 +510,31 @@ def build_standalone_hats_assets(session):
         raw = np.array(Image.open(sheet_path))
         has_alpha = raw.ndim == 3 and raw.shape[2] == 4
         h, w = raw.shape[:2]
-        cw, ch = w / 3.0, h / 2.0
-        for row in range(2):
-            for col in range(3):
-                y0, y1 = int(round(row * ch)), int(round((row + 1) * ch))
-                x0, x1 = int(round(col * cw)), int(round((col + 1) * cw))
-                cell = raw[y0:y1, x0:x1]
-                if has_alpha:
-                    seg_rgba = cell.copy()
-                else:
-                    seg_rgba = segment_subject(cell[:, :, :3], session)
 
-                # Убираем мелкий мусор/осколки с соседних ячеек (оставляем главный объект и крупные детали >= 1500 px)
-                num_l, labels, stats, _ = cv2.connectedComponentsWithStats((seg_rgba[:, :, 3] > 20).astype(np.uint8))
-                if num_l > 1:
-                    main_lbl = int(np.argmax(stats[1:, cv2.CC_STAT_AREA]) + 1)
-                    valid = np.zeros(seg_rgba.shape[:2], dtype=bool)
-                    for lbl in range(1, num_l):
-                        if lbl == main_lbl or stats[lbl, cv2.CC_STAT_AREA] >= 1500:
-                            valid[labels == lbl] = True
-                    seg_rgba[~valid, 3] = 0
+        # Выделяем 6 цельных шапок по связным компонентам (без жёсткой сетки w/3, которая резала края)
+        row_items: list[np.ndarray] = []
+        for row_idx in range(2):
+            ry0 = 0 if row_idx == 0 else h // 2
+            ry1 = h // 2 if row_idx == 0 else h
+            band = raw[ry0:ry1, :]
+            band_rgba = band.copy() if has_alpha else segment_subject(band[:, :, :3], session)
 
+            mask = (band_rgba[:, :, 3] > 20).astype(np.uint8)
+            grouped = cv2.dilate(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11)))
+            num_l, labels, stats, centroids = cv2.connectedComponentsWithStats(grouped)
+            comps = []
+            for lbl in range(1, num_l):
+                if stats[lbl, cv2.CC_STAT_AREA] >= 3000:
+                    comps.append((float(centroids[lbl][0]), lbl))
+            comps.sort(key=lambda t: t[0])
+
+            for _, lbl in comps[:3]:
+                obj = band_rgba.copy()
+                obj[labels != lbl, 3] = 0
+                row_items.append(obj)
+
+        for seg_rgba in row_items:
+            if True:
                 ys, xs = np.where(seg_rgba[:, :, 3] > 20)
                 if len(ys) == 0:
                     continue
