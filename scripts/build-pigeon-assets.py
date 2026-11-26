@@ -700,13 +700,26 @@ def build_accessories_assets(
             aligned_rgba = align_to_reference_ecc(seg_rgba, ref_alpha, mask_mode=mask_mode)
             isolated_rgba = extract_accessory_diff(aligned_rgba, ref_rgba, slot)
             if slot == "shoes":
-                # Выравниваем подошву обуви на уровень лап эталона (y_max = 476), чтобы обувь не свисала с платформы
-                sys_y = np.where(isolated_rgba[:, :, 3] > 20)[0]
-                if len(sys_y) > 0 and sys_y.max() > 478:
-                    shift_up = int(sys_y.max() - 476)
-                    shifted = np.zeros_like(isolated_rgba)
-                    shifted[:-shift_up, :] = isolated_rgba[shift_up:, :]
-                    isolated_rgba = shifted
+                # Усаживаем обувь строго в зону ног (под животом y >= 400, подошва на платформе y_max = 475)
+                sys_y, sys_x = np.where(isolated_rgba[:, :, 3] > 20)
+                if len(sys_y) > 0:
+                    sy0, sy1 = int(sys_y.min()), int(sys_y.max())
+                    sx0, sx1 = int(sys_x.min()), int(sys_x.max())
+                    crop_s = isolated_rgba[sy0:sy1 + 1, sx0:sx1 + 1]
+                    sh_c, sw_c = crop_s.shape[:2]
+                    # Целевая высота ног: от y=400 (под пузом) до y=475 (подошва) = 75px максимум
+                    max_h = 76
+                    if sh_c > max_h or sy1 > 476:
+                        scale_s = min(1.0, max_h / max(1, sh_c))
+                        nw_s = max(1, int(round(sw_c * scale_s)))
+                        nh_s = max(1, int(round(sh_c * scale_s)))
+                        res_s = cv2.resize(crop_s, (nw_s, nh_s), interpolation=cv2.INTER_AREA)
+                        cx_s = (sx0 + sx1) / 2.0
+                        dx0 = max(0, min(TARGET_SIZE[0] - nw_s, int(round(cx_s - nw_s / 2.0))))
+                        dy0 = max(0, 475 - nh_s)
+                        canvas_s = np.zeros_like(isolated_rgba)
+                        canvas_s[dy0:dy0 + nh_s, dx0:dx0 + nw_s] = res_s
+                        isolated_rgba = canvas_s
             out_file = out_slot_dir / f"{slot}-{item_idx:02d}.webp"
             save_rgba_webp(isolated_rgba, out_file)
             px = int(np.sum(isolated_rgba[:, :, 3] > 20))
