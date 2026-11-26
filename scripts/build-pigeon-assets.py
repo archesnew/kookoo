@@ -422,15 +422,13 @@ def extract_accessory_diff(
     y_grid, x_grid = np.indices(TARGET_SIZE)
 
     if slot == "shoes":
-        # Не режем высокие ушки/голенища по прямой: ставим мягкий верхний предел 0.68 (y=334)
-        # и убираем именно серые перья живота/лодыжек по насыщенности и diff
+        # Мягкий верхний предел 0.68 (y=334), чтобы не резать ушки/голенища; убираем только совпадения с телом выше лодыжек
         y_top_limit = y_min_ref + int(h_ref * 0.68)
-        y_ankle = y_min_ref + int(h_ref * 0.86)
-        rgb_s = aligned_rgba[:, :, :3].astype(np.int16)
-        sat = rgb_s.max(axis=2) - rgb_s.min(axis=2)
-        is_belly_grey = ref_body & (y_grid < y_ankle) & ((diff < 42.0) | ((sat < 28) & (diff < 65.0)))
-        cand = (alpha_src > 40) & (y_grid >= y_top_limit) & (~is_belly_grey)
-        opened = cv2.morphologyEx(cand.astype(np.uint8), cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))) > 0
+        y_ankle = y_min_ref + int(h_ref * 0.81)
+        is_belly = ref_body & (y_grid < y_ankle) & (diff < 32.0)
+        cand = (alpha_src > 40) & (y_grid >= y_top_limit) & (~is_belly)
+        closed = cv2.morphologyEx(cand.astype(np.uint8), cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))) > 0
+        opened = cv2.morphologyEx(closed.astype(np.uint8), cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))) > 0
         num_l, labels, stats, centroids = cv2.connectedComponentsWithStats(opened.astype(np.uint8))
         keep = np.zeros_like(cand)
         for lbl in range(1, num_l):

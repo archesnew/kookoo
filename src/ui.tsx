@@ -128,7 +128,7 @@ export const PIGEON_SKIN_COLORS: Record<string, string> = {
   "iridescent-oil-slick": "#5e5a67", "skin-18": "#5e5a67", "18": "#5e5a67",
 };
 
-const ASSET_V = "?v=37";
+const ASSET_V = "?v=38";
 
 export const TAB_BACKGROUNDS: Record<string, string> = {
   birds: `/assets/backgrounds/home.webp${ASSET_V}`,
@@ -586,6 +586,9 @@ function Pigeon({
 
         {/* Радиальное свечение в цвет редкости */}
         <div className="pigeon-halo" />
+
+        {/* Контактная тень строго вниз на платформу под лапами */}
+        <div className="pigeon-ground-shadow" aria-hidden="true" />
 
         {!imgError ? (
           <div
