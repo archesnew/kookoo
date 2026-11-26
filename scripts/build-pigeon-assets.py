@@ -594,8 +594,14 @@ def build_standalone_hats_assets(session, ref_rgba: np.ndarray | None = None):
                         bright = canvas[:, :, :3].mean(axis=2)
                         thresh = 28 if item_idx == 1 else 32
                         interior = ref_head_pad & (bright < thresh) & (y_grid >= y_mid) & (canvas[:, :, 3] > 20)
-                        interior = cv2.dilate(interior.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))) > 0
-                        keep_mask = cv2.GaussianBlur((~interior).astype(np.float32), (3, 3), 0.7)
+                        n_int, l_int, s_int, _ = cv2.connectedComponentsWithStats(interior.astype(np.uint8))
+                        clean_int = np.zeros_like(interior)
+                        if n_int > 1:
+                            main_int = int(np.argmax(s_int[1:, cv2.CC_STAT_AREA]) + 1)
+                            if s_int[main_int, cv2.CC_STAT_AREA] >= 150:
+                                clean_int = (l_int == main_int)
+                        clean_int = cv2.dilate(clean_int.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))) > 0
+                        keep_mask = cv2.GaussianBlur((~clean_int).astype(np.float32), (3, 3), 0.7)
                         canvas[:, :, 3] = np.clip(canvas[:, :, 3].astype(np.float32) * keep_mask, 0, 255).astype(np.uint8)
 
                 out_file = out_slot_dir / f"hats-{item_idx:02d}.webp"
