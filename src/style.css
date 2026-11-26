@@ -944,6 +944,53 @@ button:disabled {
   border-color: #ffc629;
 }
 
+.dev-hat-tuner {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.14);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dev-hat-tuner-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: #d9cfe2;
+  font-weight: 600;
+}
+
+.dev-hat-tuner-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.dev-hat-tuner-sliders {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dev-hat-tuner-sliders label {
+  flex: 1 1 calc(33.333% - 6px);
+  min-width: 85px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10px;
+  color: #a89caf;
+}
+
+.dev-hat-tuner-sliders input[type="range"] {
+  width: 100%;
+  accent-color: #ffc629;
+  cursor: pointer;
+}
+
 /* ─── Компактная плашка статуса кормления ─── */
 .feed-status-card {
   flex: none;

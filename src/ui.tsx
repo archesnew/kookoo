@@ -257,10 +257,57 @@ export const DEV_CLOTHES_OPTIONS = [
   { id: "18", label: "18. Красный университетский бомбер" },
 ] as const;
 
+export type HatFit = {
+  offsetX: number;
+  offsetY: number;
+  scale: number;
+};
+
+export const HAT_FIT_CONFIG: Record<string, Partial<HatFit>> = {
+  "01": { offsetX: 0, offsetY: 0, scale: 1 },
+  "02": { offsetX: 0, offsetY: 0, scale: 1 },
+  "03": { offsetX: 0, offsetY: 0, scale: 1 },
+  "04": { offsetX: 0, offsetY: 0, scale: 1 },
+  "05": { offsetX: 0, offsetY: 0, scale: 1 },
+  "06": { offsetX: 0, offsetY: 0, scale: 1 },
+  "07": { offsetX: 0, offsetY: 0, scale: 1 },
+  "08": { offsetX: 0, offsetY: 0, scale: 1 },
+  "09": { offsetX: 0, offsetY: 0, scale: 1 },
+  "10": { offsetX: 0, offsetY: 0, scale: 1 },
+  "11": { offsetX: 0, offsetY: 0, scale: 1 },
+  "12": { offsetX: 0, offsetY: 0, scale: 1 },
+  "13": { offsetX: 0, offsetY: 0, scale: 1 },
+  "14": { offsetX: 0, offsetY: 0, scale: 1 },
+  "15": { offsetX: 0, offsetY: 0, scale: 1 },
+  "16": { offsetX: 0, offsetY: 0, scale: 1 },
+  "17": { offsetX: 0, offsetY: 0, scale: 1 },
+  "18": { offsetX: 0, offsetY: 0, scale: 1 },
+};
+
+export function normalizeHatId(hat?: string | null): string | null {
+  if (!hat || hat === "none") return null;
+  const clean = hat.replace(/^hats-/, "").replace(/^hat-/, "").trim();
+  const num = parseInt(clean, 10);
+  if (!isNaN(num) && num >= 1 && num <= 18) {
+    return String(num).padStart(2, "0");
+  }
+  return clean || null;
+}
+
+export function getHatFit(hat?: string | null, override?: Partial<HatFit> | null): HatFit {
+  const id = normalizeHatId(hat);
+  const base = (id && HAT_FIT_CONFIG[id]) || {};
+  return {
+    offsetX: override?.offsetX ?? base.offsetX ?? 0,
+    offsetY: override?.offsetY ?? base.offsetY ?? 0,
+    scale: override?.scale ?? base.scale ?? 1,
+  };
+}
+
 export const DEV_HAT_OPTIONS = [
   { id: "none", label: "Без шапки (none)" },
   { id: "01", label: "01. Чёрная панама с пером" },
-  { id: "02", label: "02. Жёлтая строительная каска" },
+  { id: "02", label: "02. Жёлтая кепка" },
   { id: "03", label: "03. Золотая корона" },
   { id: "04", label: "04. Серая шапка-ушанка" },
   { id: "05", label: "05. Красно-белая кепка-тракер" },
@@ -300,6 +347,7 @@ function Pigeon({
   shoesTrait,
   clothingTrait,
   hatTrait,
+  hatFitOverride,
   onFeed,
   cost,
   canFeed = true,
@@ -315,6 +363,7 @@ function Pigeon({
   shoesTrait?: string | null;
   clothingTrait?: string | null;
   hatTrait?: string | null;
+  hatFitOverride?: HatFit | null;
   onFeed?: () => void;
   cost?: number;
   canFeed?: boolean;
@@ -521,23 +570,30 @@ function Pigeon({
             )}
 
             {/* Слой головного убора (z-index: 60, 18 вариантов) */}
-            {resolveHatSrc(hatTrait) && (
-              <img
-                key={`hat-${hatTrait || "hat"}`}
-                src={resolveHatSrc(hatTrait)!}
-                alt={`Головной убор: ${hatTrait}`}
-                className="pigeon-layer layer-hat"
-                onError={(e) => {
-                  const target = e.currentTarget as HTMLImageElement;
-                  const clean = (hatTrait || "").replace(/^hats-/, "").replace(/^hat-/, "");
-                  if (!target.src.includes(`hats-${clean}.webp`)) {
-                    target.src = `/assets/pigeon/hats-${clean}.webp`;
-                  } else {
-                    target.style.display = "none";
-                  }
-                }}
-              />
-            )}
+            {resolveHatSrc(hatTrait) && (() => {
+              const hatFit = getHatFit(hatTrait, hatFitOverride);
+              return (
+                <img
+                  key={`hat-${hatTrait || "hat"}`}
+                  src={resolveHatSrc(hatTrait)!}
+                  alt={`Головной убор: ${hatTrait}`}
+                  className="pigeon-layer layer-hat"
+                  style={{
+                    transform: `translate(${hatFit.offsetX}px, ${hatFit.offsetY}px) scale(${hatFit.scale})`,
+                    transformOrigin: "50% 22%",
+                  }}
+                  onError={(e) => {
+                    const target = e.currentTarget as HTMLImageElement;
+                    const clean = (hatTrait || "").replace(/^hats-/, "").replace(/^hat-/, "");
+                    if (!target.src.includes(`hats-${clean}.webp`)) {
+                      target.src = `/assets/pigeon/hats-${clean}.webp`;
+                    } else {
+                      target.style.display = "none";
+                    }
+                  }}
+                />
+              );
+            })()}
 
             {/* Анимация крошек/семян при кормлении (z-index: 70) */}
             <svg
@@ -830,6 +886,8 @@ export default function App() {
   const [previewShoes, setPreviewShoes] = useState<string | null>(null);
   const [previewClothes, setPreviewClothes] = useState<string | null>(null);
   const [previewHat, setPreviewHat] = useState<string | null>(null);
+  const [hatFitOverrides, setHatFitOverrides] = useState<Record<string, HatFit>>({});
+  const [copiedHatFit, setCopiedHatFit] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setCounter(Date.now()), 1000);
@@ -885,6 +943,8 @@ export default function App() {
         ? null
         : previewHat
       : bird?.traits?.hat;
+  const activeHatId = normalizeHatId(activeHat);
+  const activeHatFit = getHatFit(activeHat, activeHatId ? hatFitOverrides[activeHatId] : null);
   const feeds = bird?.cycleFeeds ?? s.cycleFeeds;
   const startedAt = bird?.cycleStartedAt ?? s.cycleStartedAt;
   const expired =
@@ -1067,6 +1127,7 @@ export default function App() {
             shoesTrait={activeShoes}
             clothingTrait={activeClothes}
             hatTrait={activeHat}
+            hatFitOverride={activeHatId ? hatFitOverrides[activeHatId] ?? null : null}
             onFeed={handleFeed}
             cost={cost}
             canFeed={s.seeds >= cost}
@@ -1212,6 +1273,92 @@ export default function App() {
                   </select>
                 </label>
               </div>
+              {activeHatId && (
+                <div className="dev-hat-tuner">
+                  <div className="dev-hat-tuner-header">
+                    <span>Подгонка шапки #{activeHatId}</span>
+                    <div className="dev-hat-tuner-actions">
+                      {hatFitOverrides[activeHatId] && (
+                        <button
+                          type="button"
+                          className="dev-preview-reset"
+                          onClick={() => {
+                            setHatFitOverrides((prev) => {
+                              const next = { ...prev };
+                              delete next[activeHatId];
+                              return next;
+                            });
+                          }}
+                        >
+                          ↺
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="dev-preview-reset"
+                        onClick={() => {
+                          const snippet = `"${activeHatId}": { offsetX: ${activeHatFit.offsetX}, offsetY: ${activeHatFit.offsetY}, scale: ${Number(activeHatFit.scale.toFixed(2))} },`;
+                          navigator.clipboard?.writeText(snippet).catch(() => {});
+                          setCopiedHatFit(true);
+                          setTimeout(() => setCopiedHatFit(false), 1600);
+                        }}
+                      >
+                        {copiedHatFit ? "✓ Скопировано" : "📋 В конфиг"}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="dev-hat-tuner-sliders">
+                    <label>
+                      <span>X: {activeHatFit.offsetX > 0 ? `+${activeHatFit.offsetX}` : activeHatFit.offsetX}px</span>
+                      <input
+                        type="range"
+                        min={-40}
+                        max={40}
+                        step={1}
+                        value={activeHatFit.offsetX}
+                        onChange={(e) =>
+                          setHatFitOverrides((prev) => ({
+                            ...prev,
+                            [activeHatId]: { ...activeHatFit, offsetX: Number(e.target.value) },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>Y: {activeHatFit.offsetY > 0 ? `+${activeHatFit.offsetY}` : activeHatFit.offsetY}px</span>
+                      <input
+                        type="range"
+                        min={-40}
+                        max={40}
+                        step={1}
+                        value={activeHatFit.offsetY}
+                        onChange={(e) =>
+                          setHatFitOverrides((prev) => ({
+                            ...prev,
+                            [activeHatId]: { ...activeHatFit, offsetY: Number(e.target.value) },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>Scale: {activeHatFit.scale.toFixed(2)}×</span>
+                      <input
+                        type="range"
+                        min={0.7}
+                        max={1.4}
+                        step={0.02}
+                        value={activeHatFit.scale}
+                        onChange={(e) =>
+                          setHatFitOverrides((prev) => ({
+                            ...prev,
+                            [activeHatId]: { ...activeHatFit, scale: Number(e.target.value) },
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
