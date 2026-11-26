@@ -473,7 +473,7 @@ def extract_accessory_diff(
 # Используется расширенный холст 512x576 (64px запас сверху), чтобы высокие шапки были в натуральную величину и не обрезались
 HAT_HEADROOM = 64
 STANDALONE_HAT_FIT: dict[int, tuple[int, int, int]] = {
-    1: (204, 297, 114),  # Чёрная панама
+    1: (208, 294, 118),  # Чёрная панама
     2: (202, 308, 112),  # Жёлтая кепка
     3: (162, 299, 92),   # Золотая корона
     4: (224, 290, 174),  # Шапка-ушанка
@@ -491,6 +491,9 @@ STANDALONE_HAT_FIT: dict[int, tuple[int, int, int]] = {
     16: (210, 298, 116), # Зелёная панама-лягушка
     17: (216, 294, 130), # Колпак шута
     18: (212, 288, 160), # Шлем авиатора
+}
+STANDALONE_HAT_ANGLES: dict[int, float] = {
+    1: -7.0,  # Чёрная панама: лёгкий наклон вперёд по линии бровей
 }
 
 
@@ -539,6 +542,17 @@ def build_standalone_hats_assets(session):
                 if len(ys) == 0:
                     continue
                 crop = seg_rgba[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+                angle = STANDALONE_HAT_ANGLES.get(item_idx, 0.0)
+                if angle != 0.0:
+                    ch0, cw0 = crop.shape[:2]
+                    pad = max(ch0, cw0) // 2
+                    padded = cv2.copyMakeBorder(crop, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=(0, 0, 0, 0))
+                    ph, pw = padded.shape[:2]
+                    M_rot = cv2.getRotationMatrix2D((pw / 2.0, ph / 2.0), angle, 1.0)
+                    rot = cv2.warpAffine(padded, M_rot, (pw, ph), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0, 0))
+                    rys, rxs = np.where(rot[:, :, 3] > 20)
+                    if len(rys) > 0:
+                        crop = rot[rys.min():rys.max() + 1, rxs.min():rxs.max() + 1]
                 ch_c, cw_c = crop.shape[:2]
 
                 target_w, cx_dst, y_bot_dst = STANDALONE_HAT_FIT.get(item_idx, (168, 300, 98))
