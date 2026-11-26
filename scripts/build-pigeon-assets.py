@@ -599,7 +599,7 @@ def build_standalone_hats_assets(session, ref_rgba: np.ndarray | None = None):
                     15: (0.62, 32, 0.15),  # Пиратская треуголка
                     16: (0.60, 56, 0.15),  # Панама-лягушка (тёмно-зелёная изнанка под полями)
                     17: (0.58, 45, 0.15),  # Колпак шута
-                    18: (0.46, 52, 0.25),  # Шлем авиатора (тёмная полость внутри шлема)
+                    18: (0.46, 52, 0.18),  # Шлем авиатора (тёмная полость внутри шлема)
                 }
                 if item_idx in CAVITY_THRESH:
                     y_frac, thresh, x_margin = CAVITY_THRESH[item_idx]
@@ -633,9 +633,9 @@ def build_standalone_hats_assets(session, ref_rgba: np.ndarray | None = None):
                 if ref_head_pad is not None and item_idx in (4, 18):
                     y_grid = np.arange(hat_size[1])[:, None]
                     x_grid = np.arange(hat_size[0])[None, :]
-                    cy_e = HAT_HEADROOM + 106
-                    cx_e = 352
-                    is_right_face = (((x_grid - cx_e) / 34.0) ** 2 + ((y_grid - cy_e) / 38.0) ** 2) <= 1.0
+                    cy_e = HAT_HEADROOM + 104
+                    cx_e = 342
+                    is_right_face = (((x_grid - cx_e) / 45.0) ** 2 + ((y_grid - cy_e) / 55.0) ** 2) <= 1.0
                     face_front = ref_head_pad & is_right_face
                     face_front = cv2.dilate(face_front.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))) > 0
                     face_keep = cv2.GaussianBlur((~face_front).astype(np.float32), (5, 5), 1.0)
