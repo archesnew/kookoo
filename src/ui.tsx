@@ -888,8 +888,23 @@ export default function App() {
   const [previewShoes, setPreviewShoes] = useState<string | null>(null);
   const [previewClothes, setPreviewClothes] = useState<string | null>(null);
   const [previewHat, setPreviewHat] = useState<string | null>(null);
-  const [hatFitOverrides, setHatFitOverrides] = useState<Record<string, HatFit>>({});
+  const [hatFitOverrides, setHatFitOverrides] = useState<Record<string, HatFit>>(() => {
+    try {
+      const saved = localStorage.getItem("koo-koo-dev-hat-fit-v1");
+      return saved ? (JSON.parse(saved) as Record<string, HatFit>) : {};
+    } catch {
+      return {};
+    }
+  });
   const [copiedHatFit, setCopiedHatFit] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("koo-koo-dev-hat-fit-v1", JSON.stringify(hatFitOverrides));
+    } catch {
+      // ignore storage errors
+    }
+  }, [hatFitOverrides]);
 
   useEffect(() => {
     const t = setInterval(() => setCounter(Date.now()), 1000);
@@ -1299,13 +1314,18 @@ export default function App() {
                         type="button"
                         className="dev-preview-reset"
                         onClick={() => {
-                          const snippet = `"${activeHatId}": { offsetX: ${activeHatFit.offsetX}, offsetY: ${activeHatFit.offsetY}, scale: ${Number(activeHatFit.scale.toFixed(2))}, rotate: ${activeHatFit.rotate} },`;
+                          const merged: Record<string, HatFit> = {};
+                          for (const opt of DEV_HAT_OPTIONS) {
+                            if (opt.id === "none") continue;
+                            merged[opt.id] = getHatFit(opt.id, hatFitOverrides[opt.id]);
+                          }
+                          const snippet = JSON.stringify(merged, null, 2);
                           navigator.clipboard?.writeText(snippet).catch(() => {});
                           setCopiedHatFit(true);
                           setTimeout(() => setCopiedHatFit(false), 1600);
                         }}
                       >
-                        {copiedHatFit ? "✓ Скопировано" : "📋 В конфиг"}
+                        {copiedHatFit ? "✓ Скопировано" : "📋 Весь конфиг"}
                       </button>
                     </div>
                   </div>
