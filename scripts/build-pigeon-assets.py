@@ -404,13 +404,14 @@ def extract_accessory_diff(
     y_grid, x_grid = np.indices(TARGET_SIZE)
 
     if slot == "shoes":
-        # Оставляем зону обуви внизу и убираем мелкие обрывки лодыжек выше ботинок
-        y_top_limit = y_min_ref + int(h_ref * 0.72)
-        cand = (alpha_src > 40) & (y_grid >= y_top_limit) & ((~ref_body) | (diff > 24.0) | (y_grid >= y_min_ref + int(h_ref * 0.82)))
-        num_l, labels, stats, centroids = cv2.connectedComponentsWithStats(cand.astype(np.uint8))
+        # Оставляем только зону обуви внизу (ниже живота y >= 0.78) и отсекаем серую «грязь» на животе/лодыжках
+        y_top_limit = y_min_ref + int(h_ref * 0.78)
+        cand = (alpha_src > 40) & (y_grid >= y_top_limit) & ((~ref_body) | (diff > 38.0) | (y_grid >= y_min_ref + int(h_ref * 0.86)))
+        opened = cv2.morphologyEx(cand.astype(np.uint8), cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))) > 0
+        num_l, labels, stats, centroids = cv2.connectedComponentsWithStats(opened.astype(np.uint8))
         keep = np.zeros_like(cand)
         for lbl in range(1, num_l):
-            if stats[lbl, cv2.CC_STAT_AREA] > 250 and centroids[lbl][1] > y_min_ref + int(h_ref * 0.76):
+            if stats[lbl, cv2.CC_STAT_AREA] > 300 and centroids[lbl][1] > y_min_ref + int(h_ref * 0.80):
                 keep[labels == lbl] = True
         keep = cv2.dilate(keep.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))) > 0
         out[~keep, 3] = 0
@@ -661,7 +662,7 @@ def build_accessories_assets(
     out_slot_dir.mkdir(parents=True, exist_ok=True)
     ref_alpha = ref_rgba[:, :, 3].astype(np.float32) / 255.0
 
-    mode_map = {"shoes": "upper", "clothes": "head_and_feet", "hats": "lower_body"}
+    mode_map = {"shoes": "full", "clothes": "head_and_feet", "hats": "lower_body"}
     mask_mode = mode_map.get(slot, "upper")
 
     print(f"\n{step_label} Сегментация (rembg) и ECC-выравнивание ({mask_mode}) {slot} из {src_dir}...")

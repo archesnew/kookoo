@@ -424,9 +424,9 @@ button:disabled {
 .pigeon-stage-container {
   --rarity: #aeb5c2;
   position: relative;
-  flex: 1 0 auto;
-  min-height: 380px;
-  padding-top: 40px;
+  flex: none;
+  height: 350px;
+  padding-top: 32px;
   width: 100%;
   max-width: 100%;
   display: flex;
